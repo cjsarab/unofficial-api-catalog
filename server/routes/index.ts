@@ -2,6 +2,7 @@ import { handleApis } from "./apis.ts";
 import { handleCatalog } from "./catalog.ts";
 import { handleColumns } from "./columns.ts";
 import { handleConfig } from "./config.ts";
+import { handleEndpoint } from "./endpoint.ts";
 import { handleEnvironments } from "./environments.ts";
 import { handleFamilies } from "./families.ts";
 import { handleIndexer } from "./indexer.ts";
@@ -25,6 +26,7 @@ const apiHandlers: RouteHandler[] = [
   handleIndexer,
   handleSearch,
   handleColumns,
+  handleEndpoint,
   handleApis,
   handleFamilies,
   handleTables,
