@@ -45,8 +45,14 @@
     onSelectColumn: (name: string) => void;
     onSelectTable: (name: string) => void;
     onVersionChange: (version: string) => void;
+    onfocusendpoint: (ep: { method: string; path: string }) => void;
+    focusedSlug: string | null;
   };
-  let { family, resource, version, onSelectColumn, onSelectTable, onVersionChange }: Props = $props();
+  let { family, resource, version, onSelectColumn, onSelectTable, onVersionChange, onfocusendpoint, focusedSlug }: Props = $props();
+
+  function endpointSlug(method: string, path: string): string {
+    return `${method}-${path.replace(/^\//, "").replace(/\//g, "-").replace(/[{}]/g, "")}`;
+  }
 
   let data = $state<DocsPayload | null>(null);
   let loading = $state(true);
@@ -242,7 +248,12 @@
         {:else}
           <ul class="endpoints">
             {#each data.endpoints as ep}
-              <li>
+              {@const slug = endpointSlug(ep.method, ep.path)}
+              <li class="endpoint" class:focused={focusedSlug === slug}
+                  onclick={() => onfocusendpoint({ method: ep.method, path: ep.path })}
+                  role="button"
+                  tabindex="0"
+                  onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onfocusendpoint({ method: ep.method, path: ep.path }); } }}>
                 <div class="endpoint-head">
                   <span class="method method-{ep.method.toLowerCase()}">{ep.method}</span>
                   <code class="path">{ep.path}</code>
@@ -437,6 +448,12 @@
   ul.endpoints li {
     border-bottom: 1px dotted var(--border);
     padding: var(--space-3) 0;
+  }
+  li.endpoint { cursor: pointer; }
+  li.endpoint:hover { background: var(--bg-raised); }
+  li.endpoint.focused {
+    border: 2px solid var(--border-strong);
+    background: var(--bg-raised);
   }
   .endpoint-head { display: flex; align-items: baseline; gap: var(--space-3); }
   /* HTTP method badges use a fixed semantic palette (like git diff colors) so

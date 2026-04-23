@@ -6,6 +6,7 @@
   import CatalogOverview from "./shell/CatalogOverview.svelte";
   import Sidebar from "./sidebar/Sidebar.svelte";
   import ApiDocsView from "./docs/ApiDocsView.svelte";
+  import TryPanel from "./docs/TryPanel.svelte";
   import ColumnProfile from "./docs/ColumnProfile.svelte";
   import TableProfile from "./docs/TableProfile.svelte";
   import CommandPalette from "./shell/CommandPalette.svelte";
@@ -78,6 +79,7 @@
     | { kind: "settings"; section: "environments" | "appearance" | "catalog" };
 
   let route = $state<Route>({ kind: "overview" });
+  let focusedEndpoint = $state<{ method: string; path: string } | null>(null);
 
   function routeToPath(r: Route): string {
     switch (r.kind) {
@@ -182,7 +184,48 @@
     envs && activeEnvId ? (envs.find((e) => e.id === activeEnvId)?.name ?? "(none)") : "(none)",
   );
   const activeEnv = $derived(envs && activeEnvId ? (envs.find((e) => e.id === activeEnvId) ?? null) : null);
-  void activeEnv;
+
+  const focusedSlug = $derived.by(() => {
+    if (!focusedEndpoint) return null;
+    return focusedEndpoint.method + "-" + focusedEndpoint.path.replace(/^\//, "").replace(/\//g, "-").replace(/[{}]/g, "");
+  });
+
+  function writeFragment(ep: { method: string; path: string } | null) {
+    if (!ep) { history.replaceState(null, "", location.pathname + location.search); return; }
+    const slug = ep.method + "-" + ep.path.replace(/^\//, "").replace(/\//g, "-").replace(/[{}]/g, "");
+    history.replaceState(null, "", location.pathname + location.search + "#endpoint=" + slug);
+  }
+
+  function readFragment(): { method: string; path: string } | null {
+    const hash = location.hash;
+    const m = hash.match(/#endpoint=([A-Za-z]+)-(.+)$/);
+    if (!m) return null;
+    const method = m[1]!.toUpperCase();
+    return { method, path: "/" + m[2]!.replace(/-/g, "/") };
+  }
+
+  function focusEndpoint(ep: { method: string; path: string }) {
+    focusedEndpoint = ep;
+    writeFragment(ep);
+  }
+
+  // Clear focus when leaving an API route.
+  $effect(() => {
+    if (route.kind !== "api") {
+      if (focusedEndpoint !== null) {
+        focusedEndpoint = null;
+        writeFragment(null);
+      }
+    }
+  });
+
+  // Re-read fragment when route arrives at an API detail view.
+  $effect(() => {
+    if (route.kind === "api" && !focusedEndpoint) {
+      const fromHash = readFragment();
+      if (fromHash) focusedEndpoint = fromHash;
+    }
+  });
 
   let mode = $derived.by((): "loading" | "wizard" | "app" => {
     if (!config) return "loading";
@@ -608,6 +651,8 @@
           onSelectColumn={selectColumn}
           onSelectTable={selectTable}
           onVersionChange={changeVersion}
+          {focusedSlug}
+          onfocusendpoint={focusEndpoint}
         />
       {:else if route.kind === "column"}
         <ColumnProfile
@@ -642,11 +687,22 @@
       {/if}
     {/snippet}
     {#snippet right()}
-      <PanePlaceholder
-        title="Try API"
-        description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
-        taskNumber={15}
-      />
+      {#if route.kind === "api"}
+        <TryPanel
+          family={route.family}
+          resource={route.resource}
+          version={route.version ?? ""}
+          focused={focusedEndpoint}
+          activeEnv={activeEnv}
+          region={config?.region ?? "us"}
+        />
+      {:else}
+        <PanePlaceholder
+          title="Try API"
+          description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
+          taskNumber={15}
+        />
+      {/if}
     {/snippet}
     {#snippet response()}
       <PanePlaceholder
