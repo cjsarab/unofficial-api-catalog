@@ -136,4 +136,24 @@ describe("ethos request proxy", () => {
     expect(upstream.received).toHaveLength(1);
     expect(upstream.received[0]!.headers.authorization).toBe(`Bearer ${SAMPLE_JWT}`);
   });
+
+  test("happy POST — body bytes arrive verbatim", async () => {
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+
+    const payload = { firstName: "James", lastName: "Abbot" };
+    const [req, url] = proxyReq("POST", "/persons", {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const res = await handler(req, url);
+    expect(res!.status).toBe(200);
+
+    expect(upstream.received).toHaveLength(1);
+    const got = upstream.received[0]!;
+    expect(got.method).toBe("POST");
+    expect(got.path).toBe("/persons");
+    expect(new TextDecoder().decode(got.body)).toBe(JSON.stringify(payload));
+    // Content-Type should have been forwarded (no merge rules yet — plain passthrough).
+    expect(got.headers["content-type"]).toBe("application/json");
+  });
 });

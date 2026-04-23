@@ -29,7 +29,7 @@ const PREFIX = "/api/ethos";
 export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
   return async (req, url) => {
     if (!url.pathname.startsWith(PREFIX + "/") && url.pathname !== PREFIX) return undefined;
-    const suffix = url.pathname.slice(PREFIX.length); // "/<rest>" or "" if pathname === PREFIX
+    const suffix = url.pathname.slice(PREFIX.length);
     const path = (suffix || "/") + url.search;
 
     const { activeId } = opts.envStore.list();
@@ -40,12 +40,17 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     const jwt = await opts.tokenCache.getJwt(activeId);
     const upstreamUrl = `${opts.baseUrlGetter()}${path}`;
 
-    const outgoingHeaders = new Headers();
+    // Buffer the body once — this Uint8Array is used both for the outgoing
+    // request and (later) for the onComplete hook.
+    const incomingBody = req.body ? new Uint8Array(await req.arrayBuffer()) : null;
+
+    const outgoingHeaders = new Headers(req.headers);
     outgoingHeaders.set("Authorization", `Bearer ${jwt}`);
 
     const upstreamRes = await fetch(upstreamUrl, {
       method: req.method,
       headers: outgoingHeaders,
+      body: incomingBody ?? undefined,
     });
     const body = new Uint8Array(await upstreamRes.arrayBuffer());
     return new Response(body, {
