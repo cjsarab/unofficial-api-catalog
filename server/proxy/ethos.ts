@@ -68,15 +68,31 @@ function filterIncomingHeaders(src: Headers): Headers {
   return out;
 }
 
+function classifyFetchError(err: unknown): Response {
+  const detail = err instanceof Error ? err.message : String(err);
+  // Heuristic: the token cache wraps its own fetch failures with "auth fetch failed"
+  // or "auth request failed"; anything else is an upstream fetch rejection.
+  if (/auth (fetch|request) failed|auth response/i.test(detail)) {
+    return Response.json({ error: "auth-failed", detail }, { status: 502 });
+  }
+  return Response.json({ error: "upstream-unreachable", detail }, { status: 502 });
+}
+
 export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
   return async (req, url) => {
     if (!url.pathname.startsWith(PREFIX + "/") && url.pathname !== PREFIX) return undefined;
     const suffix = url.pathname.slice(PREFIX.length);
     const path = (suffix || "/") + url.search;
 
-    const { activeId } = opts.envStore.list();
-    if (!activeId) {
+    const listed = opts.envStore.list();
+    if (!listed.activeId) {
       return Response.json({ error: "no-active-environment" }, { status: 400 });
+    }
+    const activeId = listed.activeId;
+
+    const env = opts.envStore.get(activeId);
+    if (!env || !env.hasApiKey) {
+      return Response.json({ error: "no-api-key", envId: activeId }, { status: 400 });
     }
 
     const incomingBody = req.body ? new Uint8Array(await req.arrayBuffer()) : null;
@@ -84,7 +100,7 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     const baseHeaders = filterIncomingHeaders(req.headers);
 
     async function attempt(): Promise<Response> {
-      const jwt = await opts.tokenCache.getJwt(activeId!);
+      const jwt = await opts.tokenCache.getJwt(activeId);
       const hdrs = new Headers(baseHeaders);
       hdrs.set("Authorization", `Bearer ${jwt}`);
       return fetch(upstreamUrl, {
@@ -94,15 +110,23 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
       });
     }
 
-    const firstRes = await attempt();
+    let firstRes: Response;
+    try {
+      firstRes = await attempt();
+    } catch (err) {
+      return classifyFetchError(err);
+    }
     let upstreamRes = firstRes;
     const upstreamStatus = firstRes.status;
 
     if (firstRes.status === 401) {
-      // Drain the body so Bun can reuse the socket cleanly.
       await firstRes.arrayBuffer().catch(() => undefined);
       opts.tokenCache.invalidate(activeId);
-      upstreamRes = await attempt();
+      try {
+        upstreamRes = await attempt();
+      } catch (err) {
+        return classifyFetchError(err);
+      }
     }
 
     const responseBytes = new Uint8Array(await upstreamRes.arrayBuffer());

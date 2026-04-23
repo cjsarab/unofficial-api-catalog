@@ -251,4 +251,84 @@ describe("ethos request proxy", () => {
     expect(res!.status).toBe(401);
     expect(upstream.received).toHaveLength(2);
   });
+
+  test("no active env → 400 no-active-environment", async () => {
+    // Blank out active env so the proxy rejects.
+    const secrets = createSecretStore(secretPath);
+    const freshEnvStore = createEnvironmentStore(envPath + ".empty", secrets);
+    const freshTokenCache = createTokenCache(freshEnvStore, secrets, () => upstream.baseUrl);
+    const handler = createEthosProxy({
+      envStore: freshEnvStore,
+      tokenCache: freshTokenCache,
+      baseUrlGetter: () => upstream.baseUrl,
+    });
+
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(400);
+    const body = (await res!.json()) as { error: string };
+    expect(body.error).toBe("no-active-environment");
+  });
+
+  test("active env has no API key → 400 no-api-key", async () => {
+    // Manually nuke the api key secret for the env set up in beforeEach.
+    // Create a fresh SecretStore (own cache) that reads the file, deletes the key,
+    // and flushes — then rebuild envStore so it sees the updated file.
+    const secrets = createSecretStore(secretPath);
+    secrets.deleteSecret(`env/${envId}/api_key`);
+    const freshSecrets = createSecretStore(secretPath);
+    const freshEnvStore = createEnvironmentStore(envPath, freshSecrets);
+    const freshTokenCache = createTokenCache(freshEnvStore, freshSecrets, () => upstream.baseUrl);
+    const handler = createEthosProxy({ envStore: freshEnvStore, tokenCache: freshTokenCache, baseUrlGetter: () => upstream.baseUrl });
+
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(400);
+    const body = (await res!.json()) as { error: string; envId: string };
+    expect(body.error).toBe("no-api-key");
+    expect(body.envId).toBe(envId);
+  });
+
+  test("auth fetch failure → 502 auth-failed", async () => {
+    // Point baseUrl at a port nothing is listening on to force fetch rejection.
+    const brokenCache = createTokenCache(
+      envStore,
+      createSecretStore(secretPath),
+      () => "http://127.0.0.1:1", // reserved/unused
+    );
+    const handler = createEthosProxy({
+      envStore,
+      tokenCache: brokenCache,
+      baseUrlGetter: () => upstream.baseUrl,
+    });
+
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(502);
+    const body = (await res!.json()) as { error: string; detail?: string };
+    expect(body.error).toBe("auth-failed");
+    expect(typeof body.detail).toBe("string");
+  });
+
+  test("upstream unreachable (fetch rejects) → 502 upstream-unreachable", async () => {
+    // Stop the upstream after the token cache is primed, then make a request.
+    await tokenCache.getJwt(envId); // primes the cache while upstream is alive
+    upstream.stop();
+
+    const handler = createEthosProxy({
+      envStore,
+      tokenCache,
+      baseUrlGetter: () => upstream.baseUrl, // now points at a closed port
+    });
+
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(502);
+    const body = (await res!.json()) as { error: string; detail?: string };
+    expect(body.error).toBe("upstream-unreachable");
+  });
 });
