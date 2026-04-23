@@ -331,4 +331,90 @@ describe("ethos request proxy", () => {
     const body = (await res!.json()) as { error: string; detail?: string };
     expect(body.error).toBe("upstream-unreachable");
   });
+
+  test("onComplete fires with the full event shape, Authorization redacted", async () => {
+    const events: ProxyCompleteEvent[] = [];
+    const handler = createEthosProxy({
+      envStore,
+      tokenCache,
+      baseUrlGetter: () => upstream.baseUrl,
+      onComplete: (e) => { events.push(e); },
+    });
+
+    const payload = { q: "x" };
+    const [req, url] = proxyReq("POST", "/persons?limit=5", {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    await handler(req, url);
+
+    // Hook is fire-and-forget sync in this test (synchronous callback), so it
+    // has already fired by the time await handler resolves.
+    expect(events).toHaveLength(1);
+    const e = events[0]!;
+    expect(e.envId).toBe(envId);
+    expect(e.method).toBe("POST");
+    expect(e.path).toBe("/persons?limit=5");
+    expect(e.upstreamUrl).toBe(`${upstream.baseUrl}/persons?limit=5`);
+    expect(e.requestHeaders.authorization).toBe("Bearer ***");
+    expect(new TextDecoder().decode(e.requestBody!)).toBe(JSON.stringify(payload));
+    expect(e.status).toBe(200);
+    expect(e.upstreamStatus).toBe(200);
+    expect(e.retried).toBe(false);
+    expect(typeof e.responseHeaders["content-type"]).toBe("string");
+    expect(e.responseBody.byteLength).toBeGreaterThan(0);
+    expect(e.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  test("onComplete retried=true and upstreamStatus=401 when a 401 retry fired", async () => {
+    upstream.set({ kind: "auth-sequence", first401: true });
+    const events: ProxyCompleteEvent[] = [];
+    const handler = createEthosProxy({
+      envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl,
+      onComplete: (e) => { events.push(e); },
+    });
+    const [req, url] = proxyReq("GET", "/persons");
+    await handler(req, url);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.retried).toBe(true);
+    expect(events[0]!.upstreamStatus).toBe(401);
+    expect(events[0]!.status).toBe(200);
+  });
+
+  test("async onComplete does not block the client response", async () => {
+    let hookDoneAt = 0;
+    const handler = createEthosProxy({
+      envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl,
+      onComplete: async () => {
+        await new Promise((r) => setTimeout(r, 100));
+        hookDoneAt = performance.now();
+      },
+    });
+    const [req, url] = proxyReq("GET", "/persons");
+    const t0 = performance.now();
+    await handler(req, url);
+    const clientGotAt = performance.now();
+
+    // Client response arrived well before the hook's 100ms sleep finished.
+    expect(clientGotAt - t0).toBeLessThan(80);
+    // Hook hasn't flipped the flag yet.
+    expect(hookDoneAt).toBe(0);
+  });
+
+  test("rejecting onComplete does not crash subsequent calls", async () => {
+    const handler = createEthosProxy({
+      envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl,
+      onComplete: async () => { throw new Error("boom"); },
+    });
+
+    const [req1, url1] = proxyReq("GET", "/first");
+    const res1 = await handler(req1, url1);
+    expect(res1!.status).toBe(200);
+
+    // Second call must also succeed.
+    const [req2, url2] = proxyReq("GET", "/second");
+    const res2 = await handler(req2, url2);
+    expect(res2!.status).toBe(200);
+  });
 });

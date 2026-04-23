@@ -78,6 +78,14 @@ function classifyFetchError(err: unknown): Response {
   return Response.json({ error: "upstream-unreachable", detail }, { status: 502 });
 }
 
+function headersToObject(h: Headers, redactAuth: boolean): Record<string, string> {
+  const out: Record<string, string> = {};
+  h.forEach((v, k) => {
+    out[k.toLowerCase()] = redactAuth && k.toLowerCase() === "authorization" ? "Bearer ***" : v;
+  });
+  return out;
+}
+
 export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
   return async (req, url) => {
     if (!url.pathname.startsWith(PREFIX + "/") && url.pathname !== PREFIX) return undefined;
@@ -98,41 +106,71 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     const incomingBody = req.body ? new Uint8Array(await req.arrayBuffer()) : null;
     const upstreamUrl = `${opts.baseUrlGetter()}${path}`;
     const baseHeaders = filterIncomingHeaders(req.headers);
+    const startedAt = performance.now();
 
-    async function attempt(): Promise<Response> {
+    async function attempt(): Promise<{ res: Response; outgoing: Headers }> {
       const jwt = await opts.tokenCache.getJwt(activeId);
       const hdrs = new Headers(baseHeaders);
       hdrs.set("Authorization", `Bearer ${jwt}`);
-      return fetch(upstreamUrl, {
+      const res = await fetch(upstreamUrl, {
         method: req.method,
         headers: hdrs,
         body: incomingBody ?? undefined,
       });
+      return { res, outgoing: hdrs };
     }
 
-    let firstRes: Response;
+    let first: { res: Response; outgoing: Headers };
     try {
-      firstRes = await attempt();
+      first = await attempt();
     } catch (err) {
       return classifyFetchError(err);
     }
-    let upstreamRes = firstRes;
-    const upstreamStatus = firstRes.status;
+    let finalAttempt = first;
+    let retried = false;
+    const upstreamStatus = first.res.status;
 
-    if (firstRes.status === 401) {
-      await firstRes.arrayBuffer().catch(() => undefined);
+    if (first.res.status === 401) {
+      await first.res.arrayBuffer().catch(() => undefined);
       opts.tokenCache.invalidate(activeId);
       try {
-        upstreamRes = await attempt();
+        finalAttempt = await attempt();
+        retried = true;
       } catch (err) {
         return classifyFetchError(err);
       }
     }
 
-    const responseBytes = new Uint8Array(await upstreamRes.arrayBuffer());
+    const responseBytes = new Uint8Array(await finalAttempt.res.arrayBuffer());
+    const durationMs = performance.now() - startedAt;
+
+    const event: ProxyCompleteEvent = {
+      envId: activeId,
+      method: req.method,
+      path,
+      upstreamUrl,
+      requestHeaders: headersToObject(finalAttempt.outgoing, true),
+      requestBody: incomingBody,
+      status: finalAttempt.res.status,
+      upstreamStatus,
+      responseHeaders: headersToObject(finalAttempt.res.headers, false),
+      responseBody: responseBytes,
+      durationMs,
+      retried,
+    };
+
+    if (opts.onComplete) {
+      try {
+        const maybe = opts.onComplete(event);
+        if (maybe instanceof Promise) maybe.catch(() => { /* swallow — hook errors must not crash the proxy */ });
+      } catch {
+        // sync hook throw — also swallow.
+      }
+    }
+
     return new Response(responseBytes, {
-      status: upstreamRes.status,
-      headers: shapeResponseHeaders(upstreamRes.headers, upstreamStatus),
+      status: finalAttempt.res.status,
+      headers: shapeResponseHeaders(finalAttempt.res.headers, upstreamStatus),
     });
   };
 }
