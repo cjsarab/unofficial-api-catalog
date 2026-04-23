@@ -79,25 +79,36 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
       return Response.json({ error: "no-active-environment" }, { status: 400 });
     }
 
-    const jwt = await opts.tokenCache.getJwt(activeId);
-    const upstreamUrl = `${opts.baseUrlGetter()}${path}`;
-
-    // Buffer the body once — this Uint8Array is used both for the outgoing
-    // request and (later) for the onComplete hook.
     const incomingBody = req.body ? new Uint8Array(await req.arrayBuffer()) : null;
+    const upstreamUrl = `${opts.baseUrlGetter()}${path}`;
+    const baseHeaders = filterIncomingHeaders(req.headers);
 
-    const outgoingHeaders = filterIncomingHeaders(req.headers);
-    outgoingHeaders.set("Authorization", `Bearer ${jwt}`);
+    async function attempt(): Promise<Response> {
+      const jwt = await opts.tokenCache.getJwt(activeId!);
+      const hdrs = new Headers(baseHeaders);
+      hdrs.set("Authorization", `Bearer ${jwt}`);
+      return fetch(upstreamUrl, {
+        method: req.method,
+        headers: hdrs,
+        body: incomingBody ?? undefined,
+      });
+    }
 
-    const upstreamRes = await fetch(upstreamUrl, {
-      method: req.method,
-      headers: outgoingHeaders,
-      body: incomingBody ?? undefined,
-    });
-    const body = new Uint8Array(await upstreamRes.arrayBuffer());
-    return new Response(body, {
+    const firstRes = await attempt();
+    let upstreamRes = firstRes;
+    const upstreamStatus = firstRes.status;
+
+    if (firstRes.status === 401) {
+      // Drain the body so Bun can reuse the socket cleanly.
+      await firstRes.arrayBuffer().catch(() => undefined);
+      opts.tokenCache.invalidate(activeId);
+      upstreamRes = await attempt();
+    }
+
+    const responseBytes = new Uint8Array(await upstreamRes.arrayBuffer());
+    return new Response(responseBytes, {
       status: upstreamRes.status,
-      headers: shapeResponseHeaders(upstreamRes.headers, upstreamRes.status),
+      headers: shapeResponseHeaders(upstreamRes.headers, upstreamStatus),
     });
   };
 }

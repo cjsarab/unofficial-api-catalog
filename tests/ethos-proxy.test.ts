@@ -224,4 +224,31 @@ describe("ethos request proxy", () => {
     expect(res!.status).toBe(418);
     expect(res!.headers.get("x-proxy-upstream-status")).toBe("418");
   });
+
+  test("401 on first call triggers token invalidate + single retry with fresh JWT", async () => {
+    upstream.set({ kind: "auth-sequence", first401: true });
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(200);
+    expect(res!.headers.get("x-proxy-upstream-status")).toBe("401");
+    // Two upstream calls (the 401 + the retry). Plus at least one /auth call.
+    expect(upstream.received).toHaveLength(2);
+  });
+
+  test("401 on retry too — surfaces second 401 to client, no third attempt", async () => {
+    upstream.set({
+      kind: "static",
+      status: 401,
+      headers: { "content-type": "text/plain" },
+      body: "still unauthorized",
+    });
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(401);
+    expect(upstream.received).toHaveLength(2);
+  });
 });
