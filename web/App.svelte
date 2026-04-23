@@ -55,7 +55,6 @@
     id: string;
     name: string;
     production: boolean;
-    defaultHeaders: Record<string, string>;
     hasApiKey: boolean;
   };
 
