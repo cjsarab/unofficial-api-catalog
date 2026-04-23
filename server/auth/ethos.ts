@@ -33,9 +33,16 @@ export function createTokenCache(
     if (!envStore.get(envId)) {
       throw new Error(`environment "${envId}" not found`);
     }
-    const apiKey = secretStore.getSecret(SECRET_KEY(envId));
-    if (!apiKey) {
+    const storedKey = secretStore.getSecret(SECRET_KEY(envId));
+    if (!storedKey) {
       throw new Error(`no API key set for environment "${envId}"`);
+    }
+    // Paste-defence: trailing newline/whitespace from copy-paste survives DPAPI
+    // round-trip and poisons the Bearer header; and users sometimes paste the
+    // full "Bearer <key>" header value, not just the token. Normalise both.
+    const apiKey = storedKey.trim().replace(/^Bearer\s+/i, "");
+    if (!apiKey) {
+      throw new Error(`API key for environment "${envId}" is empty after trimming`);
     }
 
     const url = `${baseUrlGetter()}/auth`;
