@@ -156,4 +156,43 @@ describe("ethos request proxy", () => {
     // Content-Type should have been forwarded (no merge rules yet — plain passthrough).
     expect(got.headers["content-type"]).toBe("application/json");
   });
+
+  test("client Accept header passes through to upstream", async () => {
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/persons", {
+      headers: { Accept: "application/vnd.hedtech.integration.v16+json" },
+    });
+    await handler(req, url);
+
+    expect(upstream.received[0]!.headers.accept).toBe("application/vnd.hedtech.integration.v16+json");
+  });
+
+  test("incoming Authorization header is dropped; only cache's Bearer reaches upstream", async () => {
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/persons", {
+      headers: { Authorization: "Bearer rogue-token-from-client" },
+    });
+    await handler(req, url);
+
+    expect(upstream.received[0]!.headers.authorization).toBe(`Bearer ${SAMPLE_JWT}`);
+  });
+
+  test("hop-by-hop and browser-added headers are stripped before forwarding", async () => {
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/persons", {
+      headers: {
+        Origin: "http://localhost:5173",
+        Referer: "http://localhost:5173/try",
+        "Sec-Fetch-Site": "same-origin",
+        Cookie: "session=abc",
+      },
+    });
+    await handler(req, url);
+
+    const got = upstream.received[0]!.headers;
+    expect(got.origin).toBeUndefined();
+    expect(got.referer).toBeUndefined();
+    expect(got["sec-fetch-site"]).toBeUndefined();
+    expect(got.cookie).toBeUndefined();
+  });
 });

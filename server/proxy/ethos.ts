@@ -26,6 +26,34 @@ export interface EthosProxyOptions {
 
 const PREFIX = "/api/ethos";
 
+// Headers to drop from the incoming request before forwarding to Ethos:
+//   hop-by-hop (fetch recomputes),
+//   browser-injected identity signals (not relevant cross-origin anyway),
+//   any client-supplied Authorization (we inject our own JWT),
+//   cookies (different origin, never useful upstream).
+const DROP_EXACT = new Set([
+  "host",
+  "connection",
+  "content-length",
+  "transfer-encoding",
+  "origin",
+  "referer",
+  "authorization",
+  "cookie",
+]);
+const DROP_PREFIX = ["sec-fetch-", "proxy-"];
+
+function filterIncomingHeaders(src: Headers): Headers {
+  const out = new Headers();
+  src.forEach((value, name) => {
+    const lower = name.toLowerCase();
+    if (DROP_EXACT.has(lower)) return;
+    if (DROP_PREFIX.some((p) => lower.startsWith(p))) return;
+    out.set(name, value);
+  });
+  return out;
+}
+
 export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
   return async (req, url) => {
     if (!url.pathname.startsWith(PREFIX + "/") && url.pathname !== PREFIX) return undefined;
@@ -44,7 +72,7 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     // request and (later) for the onComplete hook.
     const incomingBody = req.body ? new Uint8Array(await req.arrayBuffer()) : null;
 
-    const outgoingHeaders = new Headers(req.headers);
+    const outgoingHeaders = filterIncomingHeaders(req.headers);
     outgoingHeaders.set("Authorization", `Bearer ${jwt}`);
 
     const upstreamRes = await fetch(upstreamUrl, {
