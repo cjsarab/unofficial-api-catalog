@@ -3,16 +3,17 @@ import { readFileSync, statSync } from "node:fs";
 
 import type { RouteHandler } from "./types.ts";
 import { db } from "../db.ts";
+import type { OpenAPIParameter, OpenAPIRequestBody, OpenAPIResponse } from "../../web/lib/openapi.ts";
 
-// OpenAPI subset — narrowed; same shape the client consumes.
+// OpenAPI subset — narrowed; same shape the client consumes via EndpointSchema.
 export interface ExtractedEndpoint {
   method: string;
   path: string;
   summary: string | null;
   description: string | null;
-  parameters: unknown[];
-  requestBody: unknown | null;
-  responses: Record<string, unknown>;
+  parameters: OpenAPIParameter[];
+  requestBody: OpenAPIRequestBody | null;
+  responses: Record<string, OpenAPIResponse>;
 }
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete", "options", "head", "trace"];
@@ -49,12 +50,12 @@ export function extractEndpoint(
     path,
     summary: typeof operation.summary === "string" ? operation.summary : null,
     description: typeof operation.description === "string" ? operation.description : null,
-    parameters: Array.isArray(operation.parameters) ? (operation.parameters as unknown[]) : [],
+    parameters: Array.isArray(operation.parameters) ? (operation.parameters as OpenAPIParameter[]) : [],
     requestBody: (typeof operation.requestBody === "object" && operation.requestBody !== null)
-      ? operation.requestBody
+      ? (operation.requestBody as OpenAPIRequestBody)
       : null,
     responses: (typeof operation.responses === "object" && operation.responses !== null)
-      ? (operation.responses as Record<string, unknown>)
+      ? (operation.responses as Record<string, OpenAPIResponse>)
       : {},
   };
 }
