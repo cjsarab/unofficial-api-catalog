@@ -33,7 +33,6 @@ describe("environment store", () => {
     const created = store.add({
       name: "apply-prod",
       production: true,
-      defaultHeaders: { Accept: "application/vnd.hedtech.integration.v13+json" },
       apiKey: "sek-ret",
     });
     expect(created.id).toMatch(/^[0-9a-f-]{36}$/i);
@@ -51,7 +50,6 @@ describe("environment store", () => {
     store.add({
       name: "apply-prod",
       production: false,
-      defaultHeaders: {},
       apiKey: "k",
     });
     const { envs, activeId } = store.list();
@@ -63,9 +61,9 @@ describe("environment store", () => {
   test("add rejects duplicate name", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    store.add({ name: "x", production: false, defaultHeaders: {}, apiKey: "k" });
+    store.add({ name: "x", production: false, apiKey: "k" });
     expect(() =>
-      store.add({ name: "x", production: false, defaultHeaders: {}, apiKey: "k2" }),
+      store.add({ name: "x", production: false, apiKey: "k2" }),
     ).toThrow(/name.*exists|already/i);
   });
 
@@ -73,7 +71,7 @@ describe("environment store", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
     expect(() =>
-      store.add({ name: "   ", production: false, defaultHeaders: {}, apiKey: "k" }),
+      store.add({ name: "   ", production: false, apiKey: "k" }),
     ).toThrow(/name/i);
   });
 
@@ -81,7 +79,7 @@ describe("environment store", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
     expect(() =>
-      store.add({ name: "x", production: false, defaultHeaders: {}, apiKey: "" }),
+      store.add({ name: "x", production: false, apiKey: "" }),
     ).toThrow(/apiKey|api key/i);
   });
 
@@ -91,7 +89,6 @@ describe("environment store", () => {
     const created = store.add({
       name: "  padded  ",
       production: false,
-      defaultHeaders: {},
       apiKey: "k",
     });
     expect(created.name).toBe("padded");
@@ -100,7 +97,7 @@ describe("environment store", () => {
   test("update renames without touching apiKey", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "old", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "old", production: false, apiKey: "k" });
     const b = store.update(a.id, { name: "new" });
     expect(b.name).toBe("new");
     expect(b.id).toBe(a.id);
@@ -110,7 +107,7 @@ describe("environment store", () => {
   test("update with apiKey replaces the stored secret", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "old-key" });
+    const a = store.add({ name: "e", production: false, apiKey: "old-key" });
     store.update(a.id, { apiKey: "new-key" });
     expect(secrets.getSecret(`env/${a.id}/api_key`)).toBe("new-key");
   });
@@ -118,7 +115,7 @@ describe("environment store", () => {
   test("update without apiKey leaves secret unchanged", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "e", production: false, apiKey: "k" });
     store.update(a.id, { production: true });
     expect(secrets.getSecret(`env/${a.id}/api_key`)).toBe("k");
   });
@@ -126,15 +123,15 @@ describe("environment store", () => {
   test("update rejects renaming to an in-use name", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    store.add({ name: "a", production: false, defaultHeaders: {}, apiKey: "k" });
-    const b = store.add({ name: "b", production: false, defaultHeaders: {}, apiKey: "k" });
+    store.add({ name: "a", production: false, apiKey: "k" });
+    const b = store.add({ name: "b", production: false, apiKey: "k" });
     expect(() => store.update(b.id, { name: "a" })).toThrow(/already|exists/i);
   });
 
   test("update allows renaming to the current name (no-op)", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "a", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "a", production: false, apiKey: "k" });
     const b = store.update(a.id, { name: "a" });
     expect(b.name).toBe("a");
   });
@@ -148,7 +145,7 @@ describe("environment store", () => {
   test("delete removes the env and its secret", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "e", production: false, apiKey: "k" });
     store.delete(a.id);
     expect(store.get(a.id)).toBeNull();
     expect(secrets.getSecret(`env/${a.id}/api_key`)).toBeNull();
@@ -157,7 +154,7 @@ describe("environment store", () => {
   test("delete of the active env clears activeId", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "e", production: false, apiKey: "k" });
     store.setActive(a.id);
     store.delete(a.id);
     expect(store.list().activeId).toBeNull();
@@ -166,8 +163,8 @@ describe("environment store", () => {
   test("delete of a non-active env leaves activeId unchanged", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "a", production: false, defaultHeaders: {}, apiKey: "k" });
-    const b = store.add({ name: "b", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "a", production: false, apiKey: "k" });
+    const b = store.add({ name: "b", production: false, apiKey: "k" });
     store.setActive(a.id);
     store.delete(b.id);
     expect(store.list().activeId).toBe(a.id);
@@ -182,7 +179,7 @@ describe("environment store", () => {
   test("setActive stores the id; list reflects it", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "e", production: false, apiKey: "k" });
     store.setActive(a.id);
     expect(store.list().activeId).toBe(a.id);
   });
@@ -196,7 +193,7 @@ describe("environment store", () => {
   test("setActive persists across a fresh store instance", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const a = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "k" });
+    const a = store.add({ name: "e", production: false, apiKey: "k" });
     store.setActive(a.id);
     // Fresh instance, same file — exercises load() path.
     const store2 = createEnvironmentStore(envPath, secrets);
@@ -229,7 +226,7 @@ describe("environment store", () => {
   test("getApiKey returns the stored key", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
-    const e = store.add({ name: "e", production: false, defaultHeaders: {}, apiKey: "my-secret-key" });
+    const e = store.add({ name: "e", production: false, apiKey: "my-secret-key" });
     expect(store.getApiKey(e.id)).toBe("my-secret-key");
   });
 
@@ -237,5 +234,32 @@ describe("environment store", () => {
     const secrets = createSecretStore(secretPath);
     const store = createEnvironmentStore(envPath, secrets);
     expect(() => store.getApiKey("nope")).toThrow(/not found/i);
+  });
+
+  test("legacy defaultHeaders field on disk is stripped on load", () => {
+    writeFileSync(
+      envPath,
+      JSON.stringify(
+        {
+          envs: [
+            {
+              id: "legacy-id",
+              name: "legacy",
+              production: false,
+              defaultHeaders: { Accept: "application/json" },
+            },
+          ],
+          activeId: null,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const secrets = createSecretStore(secretPath);
+    const store = createEnvironmentStore(envPath, secrets);
+    const { envs } = store.list();
+    expect(envs).toHaveLength(1);
+    expect(envs[0]).not.toHaveProperty("defaultHeaders");
   });
 });

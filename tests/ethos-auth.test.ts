@@ -72,7 +72,6 @@ describe("ethos auth token cache", () => {
     const env = envStore.add({
       name: "test-env",
       production: false,
-      defaultHeaders: {},
       apiKey: API_KEY,
     });
 
@@ -87,7 +86,7 @@ describe("ethos auth token cache", () => {
     const secrets = createSecretStore(secretPath);
     const envStore = createEnvironmentStore(envPath, secrets);
     const env = envStore.add({
-      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+      name: "test-env", production: false, apiKey: API_KEY,
     });
 
     const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
@@ -102,7 +101,7 @@ describe("ethos auth token cache", () => {
     const secrets = createSecretStore(secretPath);
     const envStore = createEnvironmentStore(envPath, secrets);
     const env = envStore.add({
-      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+      name: "test-env", production: false, apiKey: API_KEY,
     });
 
     const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
@@ -127,7 +126,7 @@ describe("ethos auth token cache", () => {
     const envStore = createEnvironmentStore(envPath, secrets);
     // Add an env, then manually nuke its secret.
     const env = envStore.add({
-      name: "test-env", production: false, defaultHeaders: {}, apiKey: "placeholder",
+      name: "test-env", production: false, apiKey: "placeholder",
     });
     secrets.deleteSecret(`env/${env.id}/api_key`);
 
@@ -140,7 +139,7 @@ describe("ethos auth token cache", () => {
     const secrets = createSecretStore(secretPath);
     const envStore = createEnvironmentStore(envPath, secrets);
     const env = envStore.add({
-      name: "test-env", production: false, defaultHeaders: {}, apiKey: "wrong-key",
+      name: "test-env", production: false, apiKey: "wrong-key",
     });
 
     const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
@@ -151,7 +150,7 @@ describe("ethos auth token cache", () => {
     const secrets = createSecretStore(secretPath);
     const envStore = createEnvironmentStore(envPath, secrets);
     const env = envStore.add({
-      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+      name: "test-env", production: false, apiKey: API_KEY,
     });
 
     fixture.setResponse({ status: 200, body: "not-a-jwt" });
