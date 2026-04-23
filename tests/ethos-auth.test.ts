@@ -82,4 +82,81 @@ describe("ethos auth token cache", () => {
     expect(jwt).toBe(SAMPLE_JWT);
     expect(fixture.callCount).toBe(1);
   });
+
+  test("second call returns cached JWT without re-fetching", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const env = envStore.add({
+      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+    });
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    const first = await cache.getJwt(env.id);
+    const second = await cache.getJwt(env.id);
+
+    expect(second).toBe(first);
+    expect(fixture.callCount).toBe(1);
+  });
+
+  test("invalidate() forces a fresh fetch", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const env = envStore.add({
+      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+    });
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    await cache.getJwt(env.id);
+    cache.invalidate(env.id);
+    await cache.getJwt(env.id);
+
+    expect(fixture.callCount).toBe(2);
+  });
+
+  test("unknown envId throws not-found error", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+
+    await expect(cache.getJwt("does-not-exist")).rejects.toThrow(/not found/i);
+    expect(fixture.callCount).toBe(0);
+  });
+
+  test("env without API key throws no-key error", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    // Add an env, then manually nuke its secret.
+    const env = envStore.add({
+      name: "test-env", production: false, defaultHeaders: {}, apiKey: "placeholder",
+    });
+    secrets.deleteSecret(`env/${env.id}/api_key`);
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    await expect(cache.getJwt(env.id)).rejects.toThrow(/no API key/i);
+    expect(fixture.callCount).toBe(0);
+  });
+
+  test("auth endpoint 401 surfaces an error", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const env = envStore.add({
+      name: "test-env", production: false, defaultHeaders: {}, apiKey: "wrong-key",
+    });
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    await expect(cache.getJwt(env.id)).rejects.toThrow(/auth request failed.*401/i);
+  });
+
+  test("malformed JWT body surfaces an error", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const env = envStore.add({
+      name: "test-env", production: false, defaultHeaders: {}, apiKey: API_KEY,
+    });
+
+    fixture.setResponse({ status: 200, body: "not-a-jwt" });
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    await expect(cache.getJwt(env.id)).rejects.toThrow(/not a JWT/i);
+  });
 });
