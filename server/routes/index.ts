@@ -11,6 +11,7 @@ import { handleStatic } from "./static.ts";
 import { handleStatus } from "./status.ts";
 import { handleTables } from "./tables.ts";
 import type { RouteHandler } from "./types.ts";
+import { handleEthosProxy } from "../proxy/ethos.ts";
 
 // Each module owns a non-overlapping URL prefix; the dispatcher returns the
 // first non-undefined response. Order is mostly cosmetic, but cheap exact-path
@@ -19,6 +20,7 @@ const apiHandlers: RouteHandler[] = [
   handleStatus,
   handleConfig,
   handleEnvironments,
+  handleEthosProxy,
   handleCatalog,
   handleIndexer,
   handleSearch,

@@ -1,6 +1,12 @@
 import type { EnvironmentStore } from "../environments/store.ts";
 import type { TokenCache } from "../auth/ethos.ts";
 import type { RouteHandler } from "../routes/types.ts";
+import { createEnvironmentStore } from "../environments/store.ts";
+import { createSecretStore } from "../auth/secrets.ts";
+import { createTokenCache } from "../auth/ethos.ts";
+import { SECRETS_PATH, ENVIRONMENTS_PATH } from "../config.ts";
+import { regionToBaseUrl } from "../environments/region.ts";
+import { loadConfig } from "../config-store.ts";
 
 export interface ProxyCompleteEvent {
   envId: string;
@@ -174,3 +180,29 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     });
   };
 }
+
+// Module-level mutable URL ref — the token cache and the proxy both read
+// it via closures. Updating this on each request lets a region change via
+// Settings take effect without restarting the server OR blowing away cached
+// JWTs (which we would if we rebuilt the token cache each call).
+let currentBaseUrl = "";
+let ethosSingleton: RouteHandler | undefined;
+
+export const handleEthosProxy: RouteHandler = async (req, url) => {
+  // loadConfig is a few-ms file read; negligible next to the outbound fetch.
+  const config = await loadConfig();
+  currentBaseUrl = regionToBaseUrl(config.region);
+
+  if (!ethosSingleton) {
+    const secrets = createSecretStore(SECRETS_PATH);
+    const envStore = createEnvironmentStore(ENVIRONMENTS_PATH, secrets);
+    const tokenCache = createTokenCache(envStore, secrets, () => currentBaseUrl);
+    ethosSingleton = createEthosProxy({
+      envStore,
+      tokenCache,
+      baseUrlGetter: () => currentBaseUrl,
+      onComplete: undefined, // wired in Phase 2 item 8 (request history)
+    });
+  }
+  return ethosSingleton(req, url);
+};
