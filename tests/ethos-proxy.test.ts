@@ -59,10 +59,13 @@ function startUpstream(apiKey: string) {
         });
       }
       if (behavior.kind === "static") {
-        return new Response(behavior.body, {
-          status: behavior.status,
-          headers: behavior.headers ?? { "content-type": "text/plain" },
-        });
+        const hdrs = behavior.headers ?? { "content-type": "text/plain" };
+        // If the behavior specifies gzip encoding, compress the body so Bun's
+        // HTTP client doesn't throw a ZlibError on the plaintext bytes.
+        const bodyBytes = hdrs["content-encoding"] === "gzip"
+          ? Bun.gzipSync(new TextEncoder().encode(behavior.body))
+          : behavior.body;
+        return new Response(bodyBytes, { status: behavior.status, headers: hdrs });
       }
       if (behavior.kind === "auth-sequence") {
         authSeqCallCount++;
@@ -194,5 +197,31 @@ describe("ethos request proxy", () => {
     expect(got.referer).toBeUndefined();
     expect(got["sec-fetch-site"]).toBeUndefined();
     expect(got.cookie).toBeUndefined();
+  });
+
+  test("upstream Transfer-Encoding / Content-Encoding are not forwarded to client", async () => {
+    upstream.set({
+      kind: "static",
+      status: 200,
+      headers: { "content-type": "text/plain", "content-encoding": "gzip", "transfer-encoding": "chunked" },
+      body: "hello",
+    });
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/anything");
+    const res = await handler(req, url);
+
+    expect(res!.headers.get("content-encoding")).toBeNull();
+    expect(res!.headers.get("transfer-encoding")).toBeNull();
+    expect(res!.headers.get("content-type")).toBe("text/plain");
+  });
+
+  test("X-Proxy-Upstream-Status sidecar header reflects the upstream status", async () => {
+    upstream.set({ kind: "static", status: 418, body: "tea" });
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+    const [req, url] = proxyReq("GET", "/anything");
+    const res = await handler(req, url);
+
+    expect(res!.status).toBe(418);
+    expect(res!.headers.get("x-proxy-upstream-status")).toBe("418");
   });
 });

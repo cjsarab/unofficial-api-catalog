@@ -43,6 +43,20 @@ const DROP_EXACT = new Set([
 ]);
 const DROP_PREFIX = ["sec-fetch-", "proxy-"];
 
+// Response-side headers to strip. Bun's fetch has already decoded the body,
+// so advertising the upstream encoding would mislead the client.
+const RESPONSE_DROP = new Set(["content-encoding", "transfer-encoding"]);
+
+function shapeResponseHeaders(src: Headers, upstreamStatus: number): Headers {
+  const out = new Headers();
+  src.forEach((value, name) => {
+    if (RESPONSE_DROP.has(name.toLowerCase())) return;
+    out.set(name, value);
+  });
+  out.set("X-Proxy-Upstream-Status", String(upstreamStatus));
+  return out;
+}
+
 function filterIncomingHeaders(src: Headers): Headers {
   const out = new Headers();
   src.forEach((value, name) => {
@@ -83,7 +97,7 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     const body = new Uint8Array(await upstreamRes.arrayBuffer());
     return new Response(body, {
       status: upstreamRes.status,
-      headers: upstreamRes.headers,
+      headers: shapeResponseHeaders(upstreamRes.headers, upstreamRes.status),
     });
   };
 }
