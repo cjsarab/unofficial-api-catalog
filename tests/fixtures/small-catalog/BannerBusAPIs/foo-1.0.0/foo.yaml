@@ -1,0 +1,35 @@
+openapi: 3.0.0
+info:
+  title: Foo API
+  description: A sample API for testing the indexer.
+  version: "1.0.0"
+  x-source-system: banner
+  x-source-domain: Student
+  x-source-title: Foo
+  x-api-type: other
+  x-release-status: ga
+paths:
+  /api/foo:
+    get:
+      summary: Get foo records
+      description: Returns a list of foo records.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      x-lineageReferenceObject: SPRIDEN_ID(SPRIDEN)
+                      x-lineageLookupReferenceObject: spriden
+                    name:
+                      type: string
+                      x-lineageReferenceObject: SPRIDEN_LAST_NAME
+                    pidm:
+                      type: string
+                      x-lineageReferenceObject: SPRIDEN_PIDM where SPRIDEN_CHANGE_IND = 'I'

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["bun-types"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@server/*": ["server/*"],
+      "@web/*": ["web/*"]
+    }
+  },
+  "include": ["server.ts", "server/**/*.ts", "web/**/*.ts", "web/**/*.svelte", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".svelte-kit"]
+}

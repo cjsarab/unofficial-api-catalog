@@ -1,0 +1,30 @@
+openapi: 3.0.0
+info:
+  title: Bar
+  description: An EEDM-style sample API.
+  version: "6.0.0"
+  x-source-system: banner
+  x-source-domain: Student
+  x-api-type: ethos
+  x-release-status: ga
+paths:
+  /api/bar:
+    get:
+      summary: Get bar records
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    x-lineageReferenceObject: unsupported
+                  relatedPerson:
+                    type: object
+                    x-lineageLookupReferenceObject: persons
+                    properties:
+                      id:
+                        type: string

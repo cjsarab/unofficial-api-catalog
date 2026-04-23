@@ -1,0 +1,122 @@
+/*
+ * Theme tokens — single source of truth for palette, type, spacing.
+ * Switching a theme: set data-theme="amber" (etc.) on <html>.
+ * Per-effect CRT layers (scanlines, glow, curvature) live in separate files
+ * and are toggled by data-attributes on <html> so users can mix & match.
+ */
+
+:root,
+:root[data-theme="phosphor"] {
+  --bg: #0d120d;
+  --bg-panel: #0f180f;
+  --bg-raised: #111a11;
+  --border: #1e2a1e;
+  --border-strong: #2a402a;
+
+  --fg: #a9ff68;
+  --fg-bright: #c9ff9a;
+  --fg-dim: #6ba544;
+  --accent: #e0ffd0;
+  --accent-active: #3affa0;
+
+  --danger: #ff6868;
+  --warn: #ffcc6a;
+
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "IBM Plex Mono",
+    Consolas, monospace;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="amber"] {
+  --bg: #150f05;
+  --bg-panel: #1a120a;
+  --bg-raised: #1f170c;
+  --border: #2a1e0a;
+  --border-strong: #4a2a0a;
+  --fg: #ffb95c;
+  --fg-bright: #ffd88a;
+  --fg-dim: #9a7030;
+  --accent: #ffefc0;
+  --accent-active: #ffd700;
+  --danger: #ff6868;
+  --warn: #ffcc6a;
+  color-scheme: dark;
+}
+
+:root[data-theme="dos"] {
+  --bg: #00007a;
+  --bg-panel: #000055;
+  --bg-raised: #000033;
+  --border: #a8a8a8;
+  --border-strong: #ffff54;
+  --fg: #e6e6e6;
+  --fg-bright: #ffff54;
+  --fg-dim: #a8a8a8;
+  --accent: #54ffff;
+  --accent-active: #55ffff;
+  --danger: #ff5454;
+  --warn: #ffff54;
+  color-scheme: dark;
+}
+
+:root[data-theme="beige"] {
+  --bg: #efe8d4;
+  --bg-panel: #f7f0da;
+  --bg-raised: #fbf5e2;
+  --border: #c7bfa6;
+  --border-strong: #a89568;
+  --fg: #23201a;
+  --fg-bright: #5e3a1e;
+  --fg-dim: #6e614a;
+  --accent: #5e3a1e;
+  --accent-active: #4b8f3a;
+  --danger: #a03020;
+  --warn: #8a6030;
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--border-strong);
+  color: var(--accent);
+}
+
+/* Hide the browser's native ✕ clear button on search inputs — we render our
+   own [×] button next to the input for consistency across sections and a more
+   retro feel. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+input[type="search"]::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}

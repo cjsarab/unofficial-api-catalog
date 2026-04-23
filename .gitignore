@@ -1,0 +1,73 @@
+# Runtime + build artefacts
+bun.exe
+bun-*.zip
+node_modules/
+dist/
+build/
+.svelte-kit/
+coverage/
+.nyc_output/
+
+# User data (never commit)
+APICatalog/
+%APPDATA%/
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.db
+index.sqlite
+fixtures/real-catalog/
+
+# Secrets — never commit these, ever.
+# If a template is ever needed, allow-list via `!foo.example` on a specific file.
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.asc
+*.gpg
+*.crt
+*.cer
+secrets.json
+credentials.json
+credentials*.json
+auth.json
+api-key*
+api_key*
+*.secret
+secret*.txt
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+.aws/
+.gcp/
+.ssh/
+
+# Tooling
+.superpowers/
+.claude/
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# Editor swap / backup files
+*.swp
+*.swo
+*~
+.history/
+*.bak
+*.orig
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
