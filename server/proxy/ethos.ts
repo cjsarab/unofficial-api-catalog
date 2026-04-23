@@ -55,9 +55,11 @@ const RESPONSE_DROP = new Set(["content-encoding", "transfer-encoding"]);
 
 function shapeResponseHeaders(src: Headers, upstreamStatus: number): Headers {
   const out = new Headers();
+  // append, not set — preserves repeated headers like Set-Cookie /
+  // WWW-Authenticate / Link, which Headers.forEach visits once per value.
   src.forEach((value, name) => {
     if (RESPONSE_DROP.has(name.toLowerCase())) return;
-    out.set(name, value);
+    out.append(name, value);
   });
   out.set("X-Proxy-Upstream-Status", String(upstreamStatus));
   return out;
@@ -69,7 +71,7 @@ function filterIncomingHeaders(src: Headers): Headers {
     const lower = name.toLowerCase();
     if (DROP_EXACT.has(lower)) return;
     if (DROP_PREFIX.some((p) => lower.startsWith(p))) return;
-    out.set(name, value);
+    out.append(name, value);
   });
   return out;
 }
