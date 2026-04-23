@@ -82,8 +82,8 @@ export function createEnvironmentStore(
     const activeId = activeIdRaw && p.envs.some((e) => e.id === activeIdRaw) ? activeIdRaw : null;
     // Strip legacy fields we no longer carry. `defaultHeaders` moved to the
     // Try panel in Phase 2 item 4; old environments.json files still have it.
-    const sanitized: Environment[] = p.envs.map((raw) => {
-      const e = raw as Environment & { defaultHeaders?: unknown };
+    const sanitized: Environment[] = p.envs.map((entry) => {
+      const e = entry as Environment & { defaultHeaders?: unknown };
       return { id: e.id, name: e.name, production: e.production };
     });
     cache = { envs: sanitized, activeId };
