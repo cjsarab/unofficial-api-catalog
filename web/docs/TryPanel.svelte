@@ -52,10 +52,20 @@
     const url = `/api/apis/${encodeURIComponent(family)}/${encodeURIComponent(resource)}/endpoint?method=${encodeURIComponent(focused.method)}&path=${encodeURIComponent(focused.path)}&version=${encodeURIComponent(version)}`;
     fetch(url)
       .then(async (r) => {
+        // 404 means this endpoint doesn't exist in the chosen version — that's
+        // not an error, it's a legitimate state (e.g. the user switched from
+        // v12 /api/persons to v8 which uses /person/persons). Render the
+        // "not in this version" branch instead of a scary red banner.
+        if (r.status === 404) return null;
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<EndpointSchema>;
       })
       .then((schema) => {
+        if (schema === null) {
+          currentSchema = null;
+          warnings = [];
+          return;
+        }
         const key = endpointKey!;
         const existingSchema = schemas.get(key);
         const existingState = states.get(key) ?? freshState();
@@ -130,6 +140,11 @@
     const missing: string[] = [];
     const params = currentSchema?.parameters ?? [];
     for (const p of params) {
+      // Header + cookie params aren't surfaced in ParamsTab — the HeadersTab
+      // (and the auto-injected Accept from the version dropdown) owns those.
+      // Validating them here would false-flag required headers like the
+      // Ellucian `accept: application/vnd.hedtech.integration.vN+json` param.
+      if (p.in !== "path" && p.in !== "query") continue;
       const required = p.in === "path" || p.required;
       if (!required) continue;
       const bag = p.in === "path" ? state.pathParams : state.queryParams;
