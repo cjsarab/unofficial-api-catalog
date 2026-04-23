@@ -45,8 +45,6 @@ export const handleEnvironments: RouteHandler = async (req, url) => {
       const created = getStore().add({
         name: String(body.name ?? ""),
         production: Boolean(body.production),
-        defaultHeaders:
-          body.defaultHeaders && typeof body.defaultHeaders === "object" ? body.defaultHeaders : {},
         apiKey: String(body.apiKey ?? ""),
       });
       return Response.json(created, { status: 201 });
