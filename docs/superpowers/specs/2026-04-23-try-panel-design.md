@@ -246,14 +246,33 @@ Response · 200 OK · 423 ms
   - Real Ethos errors (401/403/404/etc. from the actual tenant) pass through as-is; no special banner.
 - **Clear on endpoint switch.** When the focused endpoint changes, the response stub clears (previous response was for a different endpoint).
 
+### Fate when item 6 ships
+
+When the full Response panel lands (PLAN.md item 6: tabs for raw / table / headers / timing, pop-out window, Copy as curl, SQL-grid table rendering), the Try panel's inline stub **shrinks**, not disappears. The in-Try surface becomes a single status pill above the Send button: `Last: 200 OK · 423 ms · view in Response panel ↓`. That keeps the "did my send complete?" affordance local while the rich views live in the dedicated full-width panel. The pretty-printed body + collapsible headers + error banner behaviour moves verbatim into the Response panel (the error-banner logic is identical either way — structured proxy errors render the same). This is called out in item 6's future brainstorm rather than being a Try-panel refactor.
+
 ## State persistence
 
 Scope: per-endpoint form drafts preserved while the app is running.
 
 - In-memory `Map<endpointKey, FormState>` module-level in `TryPanel.svelte` (or a sibling `web/lib/try-panel-state.ts` if it grows).
-- `endpointKey = \`${method} ${pathTemplate}\`` — version-independent so switching versions of the same resource preserves drafts. (A switch from `persons/12.6.0` to `persons/12.7.0` probably has compatible param names; user can adjust if fields disappeared.)
+- `endpointKey = \`${method} ${pathTemplate}\`` — version-independent so switching versions of the same resource preserves drafts.
+- `FormState` shape: `{ pathParams: Record<name, string>, queryParams: Record<name, string>, criteria: Record<rootKey, Record<leafName, string>>, headers: Array<{name, value}>, body: { mode: "form"|"raw", text: string }, headersOverridden: Record<name, boolean> }`.
 - Hard reload clears all drafts. This is acceptable — the user can re-send from request history (item 8) once that ships.
 - No `localStorage` persistence for drafts. Bodies may contain personal data (names, credentials, SSNs). Keeping them ephemeral avoids a secrets-at-rest concern for a feature we don't need yet.
+
+### Version switching while drafts exist
+
+When the docs-header version dropdown changes — e.g. user is editing the form for `persons/12.6.0` and picks `12.7.0` — the Try panel re-fetches the new version's per-endpoint schema and re-renders against it. The previously-typed values are preserved keyed by name and re-projected onto the new schema:
+
+- **Field name + compatible type → value carried over.** A `lastName` text input keeps its value if `lastName` exists in the new version with a string-ish schema.
+- **Field name exists but type changed** → input re-renders with the new control; a coercion attempt is made (numeric strings to number inputs, ISO strings to date pickers); failed coercions show an amber outline + tooltip "couldn't fit the previous value into the new schema."
+- **Field name no longer present in the new version** → value is preserved in a per-endpoint "orphans" bucket and surfaced as a single banner at the top of the relevant tab: `"2 fields from v12.6.0 (lastNamePrefix, middleName) aren't in v12.7.0. View in Raw JSON to recover."` Switching to Raw JSON view shows the orphaned values inline (commented out or in a separate top-level key, TBD during implementation — the bias is preserve-don't-discard).
+- **Body in Form mode** → tries to re-render against the new body schema. If the new schema doesn't accommodate, falls back to Raw mode with the previous serialised JSON intact and a banner.
+- **Criteria filters** → picker re-scrapes the new version's description. Already-picked chips persist by leafPath; if a chip's leafPath isn't in the new version's extracted filters, it stays as a chip but gains a small "no longer documented" amber tag (the value still goes in the request — Ellucian commonly accepts undocumented filters).
+- **Accept header** auto-recomputes for the new version (`v12+json` → `v13+json`). User overrides on the Accept row are preserved across version switches (they stay overridden).
+- **Focused endpoint doesn't exist in the new version at all** → the Try panel shows `"GET /persons isn't in v12.7.0. Pick another endpoint, or revert the version."` Form state for the missing endpoint is kept (it'll come back if the user reverts). The URL fragment is left untouched.
+
+This logic lives in `web/docs/try/version-migration.ts` (a pure function over `FormState + oldSchema + newSchema → {nextState, warnings}`) so it's unit-testable without the component harness.
 
 ## Server-side data
 
@@ -352,8 +371,10 @@ Shared on the server via a sibling or imported from there (path alias `@server` 
 - `web/docs/try/ResponseStub.svelte` — the inline response display.
 - `web/lib/openapi.ts` — types describing the OpenAPI subset we consume.
 - `web/lib/criteria-scraper.ts` — pure function, extracts filter leaves from description text.
+- `web/docs/try/version-migration.ts` — pure function, re-projects FormState onto a new version's schema (see "Version switching while drafts exist" above).
 - `server/routes/endpoint.ts` — new route, lazy YAML reparse + per-endpoint schema extraction.
 - `tests/criteria-scraper.test.ts` — unit tests for the scraper (bun:test — it's a pure TS function, importable from the web/lib path via the `@web` Vite alias; tests import from the raw path).
+- `tests/version-migration.test.ts` — unit tests for the FormState re-projection covering: same-name same-type carryover, type-change coercion, missing-field orphan banner, body Form→Raw fallback, criteria chip "no longer documented" tagging, endpoint-not-in-version handling.
 - `tests/endpoint-route.test.ts` — integration test for the new route (tiny fixture YAML + assertions on extracted parameters/requestBody).
 
 ### Modified
