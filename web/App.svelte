@@ -11,6 +11,9 @@
   import TableProfile from "./docs/TableProfile.svelte";
   import CommandPalette from "./shell/CommandPalette.svelte";
   import SettingsView from "./settings/SettingsView.svelte";
+  import ResponsePanel from "./docs/response/ResponsePanel.svelte";
+  import ResponseEmpty from "./docs/response/ResponseEmpty.svelte";
+  import type { ResponseView } from "./docs/response/types.ts";
 
   type CatalogPathStatus = "ok" | "missing" | "invalid" | "none";
   type Region = "us" | "ca" | "eu" | "ap";
@@ -81,6 +84,8 @@
 
   let route = $state<Route>({ kind: "overview" });
   let focusedEndpoint = $state<{ method: string; path: string } | null>(null);
+  let currentResponse = $state<ResponseView | null>(null);
+  let isSending = $state(false);
   // Settings is a modal over the current route, not a route of its own — so
   // closing it returns the user to whatever they were doing.
   let settingsOpen = $state(false);
@@ -702,6 +707,8 @@
           focused={focusedEndpoint}
           activeEnv={activeEnv}
           region={config?.region ?? "us"}
+          onSend={(view) => { currentResponse = view; isSending = false; }}
+          onAbort={() => { isSending = false; /* previous view stays visible until the new one lands */ }}
         />
       {:else}
         <PanePlaceholder
@@ -712,11 +719,15 @@
       {/if}
     {/snippet}
     {#snippet response()}
-      <PanePlaceholder
-        title="Response"
-        description="Raw · table · headers · timing tabs. Appears here after you send a request. Ctrl+\\ to collapse."
-        taskNumber={15}
-      />
+      {#if currentResponse}
+        <ResponsePanel
+          {...currentResponse}
+          sending={isSending}
+          onclear={() => (currentResponse = null)}
+        />
+      {:else}
+        <ResponseEmpty />
+      {/if}
     {/snippet}
     {#snippet statusBar()}
       <StatusBar summary={summary} catalogPath={config?.catalogPath} env={activeEnvName} lastResponse={null} />

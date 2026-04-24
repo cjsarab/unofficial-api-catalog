@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { EndpointSchema, OpenAPIParameter } from "../lib/openapi.ts";
+  import type { ResponseView } from "./response/types.ts";
   import { reprojectFormState, type FormState, type MigrationWarning } from "./try/version-migration.ts";
   import ParamsTab from "./try/ParamsTab.svelte";
   import HeadersTab from "./try/HeadersTab.svelte";
   import BodyTab from "./try/BodyTab.svelte";
   import VerbSafetyModal from "./try/VerbSafetyModal.svelte";
-  import ResponseStub from "./try/ResponseStub.svelte";
 
   type Props = {
     family: string;
@@ -14,8 +14,10 @@
     focused: { method: string; path: string } | null;
     activeEnv: { id: string; name: string; production: boolean } | null;
     region: "us" | "ca" | "eu" | "ap";
+    onSend: (view: ResponseView) => void;
+    onAbort: () => void;
   };
-  let { family, resource, version, focused, activeEnv, region }: Props = $props();
+  let { family, resource, version, focused, activeEnv, region, onSend, onAbort }: Props = $props();
 
   const REDACT_RE = /password|secret|token|key|ssn|creditCard/i;
 
@@ -128,11 +130,6 @@
   let sending = $state(false);
   let amberNames = $state<Set<string>>(new Set());
   let globalError = $state<string | null>(null);
-  let response = $state<{
-    status: number; statusText: string; headers: Record<string, string>;
-    bodyText: string; contentType: string | null;
-    durationMs: number; proxyError?: { error: string; detail?: string; envId?: string };
-  } | null>(null);
   let safetyModalOpen = $state(false);
   let skipSafety = false;
 
@@ -176,8 +173,19 @@
     await performSend();
   }
 
+  let inflightCtl: AbortController | null = null;
+
   async function performSend() {
     if (!focused || !currentSchema) return;
+
+    // Cancel-previous: aborting any in-flight send. App mirrors the UI state through onSend/onAbort.
+    if (inflightCtl) {
+      inflightCtl.abort();
+      onAbort();
+    }
+    const ctl = new AbortController();
+    inflightCtl = ctl;
+
     sending = true;
     const t0 = performance.now();
     try {
@@ -189,22 +197,17 @@
       }
       let body: BodyInit | undefined;
       if (focused.method !== "GET" && focused.method !== "HEAD" && focused.method !== "DELETE") {
-        if (state.body.mode === "raw") {
-          body = state.body.text;
-        } else {
-          // Form mode: serialise formValue (currently stored alongside; we re-read text).
-          body = state.body.text;
-        }
+        body = state.body.text;
         if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
       }
-      const res = await fetch(`/api/ethos${computedUrl.startsWith("/") ? computedUrl : "/" + computedUrl}`, {
-        method: focused.method,
-        headers,
-        body,
-      });
+      const res = await fetch(
+        `/api/ethos${computedUrl.startsWith("/") ? computedUrl : "/" + computedUrl}`,
+        { method: focused.method, headers, body, signal: ctl.signal },
+      );
       const bodyText = await res.text();
       const ct = res.headers.get("content-type");
-      let proxyError: { error: string; detail?: string; envId?: string } | undefined;
+
+      let proxyError: ResponseView["proxyError"] | undefined;
       if (!res.ok && ct?.startsWith("application/json")) {
         try {
           const parsed = JSON.parse(bodyText) as { error?: string; detail?: string; envId?: string };
@@ -213,22 +216,54 @@
           }
         } catch { /* not our structured error */ }
       }
-      response = {
+
+      const headersObj: Record<string, string> = {};
+      res.headers.forEach((v, k) => { headersObj[k.toLowerCase()] = v; });
+
+      const authMs = Number(res.headers.get("x-proxy-auth-ms") ?? 0);
+      const requestMs = Number(res.headers.get("x-proxy-request-ms") ?? 0);
+      const responseMs = Number(res.headers.get("x-proxy-response-ms") ?? 0);
+      const reqBytes = Number(res.headers.get("x-proxy-request-bytes") ?? 0);
+      const respBytes = Number(res.headers.get("x-proxy-response-bytes") ?? bodyText.length);
+
+      const requestHeadersObj: Record<string, string> = {};
+      headers.forEach((v, k) => { requestHeadersObj[k.toLowerCase()] = v; });
+
+      const view: ResponseView = {
         status: res.status,
         statusText: res.statusText,
-        headers: Object.fromEntries(res.headers.entries()),
+        headers: headersObj,
+        requestHeaders: requestHeadersObj,
         bodyText,
         contentType: ct,
-        durationMs: Math.round(performance.now() - t0),
+        timings: {
+          authMs: Number.isFinite(authMs) ? authMs : 0,
+          requestMs: Number.isFinite(requestMs) ? requestMs : 0,
+          responseMs: Number.isFinite(responseMs) ? responseMs : 0,
+          totalMs: Math.round(performance.now() - t0),
+        },
+        bytes: {
+          requestBytes: Number.isFinite(reqBytes) ? reqBytes : 0,
+          responseBytes: Number.isFinite(respBytes) ? respBytes : 0,
+        },
         proxyError,
       };
+      onSend(view);
     } catch (e) {
-      response = {
-        status: 0, statusText: "Network error",
-        headers: {}, bodyText: String((e as Error).message),
-        contentType: null, durationMs: Math.round(performance.now() - t0),
-      };
+      // Aborted by a subsequent send: do nothing (App will have received onAbort above, and the new send will call onSend).
+      if ((e as { name?: string }).name === "AbortError") return;
+      onSend({
+        status: 0,
+        statusText: "Network error",
+        headers: {},
+        requestHeaders: {},
+        bodyText: String((e as Error).message),
+        contentType: null,
+        timings: { authMs: 0, requestMs: 0, responseMs: 0, totalMs: Math.round(performance.now() - t0) },
+        bytes: { requestBytes: 0, responseBytes: 0 },
+      });
     } finally {
+      if (inflightCtl === ctl) inflightCtl = null;
       sending = false;
     }
   }
@@ -343,17 +378,6 @@
     </div>
   {/if}
 
-  {#if response}
-    <ResponseStub
-      status={response.status}
-      statusText={response.statusText}
-      durationMs={response.durationMs}
-      headers={response.headers}
-      bodyText={response.bodyText}
-      contentType={response.contentType}
-      proxyError={response.proxyError}
-    />
-  {/if}
 </section>
 
 {#if safetyModalOpen && activeEnv && focused}
