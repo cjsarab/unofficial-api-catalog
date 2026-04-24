@@ -1,6 +1,8 @@
 <script lang="ts">
   import { tokenize } from "../highlight.ts";
   import { formatBytes } from "../format.ts";
+  import JsonTree from "../JsonTree.svelte";
+  import type { Json } from "../types.ts";
 
   type Props = {
     bodyText: string;
@@ -14,6 +16,7 @@
 
   let prettyOn = $state(true);
   let lineNumbersOn = $state(false);
+  let treeOn = $state(true);
   let showAll = $state(false);
 
   const isJson = $derived(!!contentType && contentType.startsWith("application/json"));
@@ -40,6 +43,13 @@
   }
 
   const tokensTooBig = $derived(isJson && bodyText.length > TOKENIZE_MAX_BYTES);
+
+  const parsedJson = $derived.by<Json | null>(() => {
+    if (!isJson) return null;
+    try { return JSON.parse(bodyText) as Json; } catch { return null; }
+  });
+
+  const treeAvailable = $derived(isJson && !tokensTooBig && parsedJson !== null);
 
   const displayText = $derived.by(() => {
     if (isBinary && !showAll) {
@@ -72,10 +82,13 @@
 <section class="raw">
   <header>
     <label>
-      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || tokensTooBig} /> Pretty
+      <input type="checkbox" bind:checked={treeOn} disabled={!treeAvailable} /> Tree
     </label>
     <label>
-      <input type="checkbox" bind:checked={lineNumbersOn} /> Line numbers
+      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || tokensTooBig || (treeOn && treeAvailable)} /> Pretty
+    </label>
+    <label>
+      <input type="checkbox" bind:checked={lineNumbersOn} disabled={treeOn && treeAvailable} /> Line numbers
     </label>
     {#if tokensTooBig}
       <span class="note" title="Highlighting disabled to keep the panel responsive on large bodies.">highlighting off (large body)</span>
@@ -92,12 +105,18 @@
     <button onclick={copy} aria-label="Copy body">Copy</button>
   </header>
 
-  <div class="body" class:with-gutter={lineNumbersOn}>
-    {#if lineNumbersOn}
-      <pre class="gutter">{lineNumberColumn}</pre>
-    {/if}
-    <pre class="text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
-  </div>
+  {#if treeOn && treeAvailable}
+    <div class="body tree">
+      <JsonTree value={parsedJson as Json} />
+    </div>
+  {:else}
+    <div class="body" class:with-gutter={lineNumbersOn}>
+      {#if lineNumbersOn}
+        <pre class="gutter">{lineNumberColumn}</pre>
+      {/if}
+      <pre class="text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -140,6 +159,13 @@
     color: var(--fg);
     white-space: pre;
     flex: 1;
+  }
+  .body.tree {
+    padding: var(--space-3);
+    overflow: auto;
+    background: var(--bg);
+    flex: 1;
+    white-space: normal;
   }
   .with-gutter {
     display: grid;
