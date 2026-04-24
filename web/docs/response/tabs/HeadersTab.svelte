@@ -7,7 +7,8 @@
 
   const REDACT_KEYS = new Set(["authorization", "cookie", "set-cookie"]);
 
-  let reqOpen = $state(false);
+  type SubTab = "response" | "request";
+  let activeSub = $state<SubTab>("response");
   let revealed = $state<Set<string>>(new Set());
 
   function toggleReveal(key: string) {
@@ -25,113 +26,158 @@
     return Object.entries(h).sort(([a], [b]) => a.localeCompare(b));
   }
 
-  function copySection(h: Record<string, string>) {
+  function copyActive() {
+    const h = activeSub === "response" ? responseHeaders : requestHeaders;
     const text = sortedEntries(h)
-      .map(([k, v]) => `${k}: ${isRedacted(k) && !revealed.has("§" + k) ? "***" : v}`)
+      .map(([k, v]) => {
+        const shown = !isRedacted(k) || revealed.has(`${activeSub[0]}:${k}`);
+        return `${k}: ${shown ? v : "***"}`;
+      })
       .join("\n");
-    navigator.clipboard?.writeText(text).catch(() => { /* best effort */ });
+    navigator.clipboard?.writeText(text).catch(() => {
+      /* best effort */
+    });
   }
+
+  const activeHeaders = $derived(activeSub === "response" ? responseHeaders : requestHeaders);
+  const activeCount = $derived(Object.keys(activeHeaders).length);
+  const respCount = $derived(Object.keys(responseHeaders).length);
+  const reqCount = $derived(Object.keys(requestHeaders).length);
 </script>
 
 <section class="hdr">
-  <div class="section">
-    <header>
-      <span class="label">Response headers ({Object.keys(responseHeaders).length})</span>
-      <button onclick={() => copySection(responseHeaders)} aria-label="Copy response headers">Copy</button>
-    </header>
-    <dl>
-      {#each sortedEntries(responseHeaders) as [k, v]}
-        <dt>{k}</dt>
-        <dd>
-          {#if isRedacted(k) && !revealed.has("r:" + k)}
-            <button class="reveal" onclick={() => toggleReveal("r:" + k)}>[show]</button>
-            <span class="redacted">***</span>
-          {:else}
-            <span>{v}</span>
-            {#if isRedacted(k)}
-              <button class="reveal" onclick={() => toggleReveal("r:" + k)}>[hide]</button>
-            {/if}
-          {/if}
-        </dd>
-      {/each}
-    </dl>
-  </div>
+  <nav class="sub-tabs" role="tablist" aria-label="Headers section">
+    <button
+      role="tab"
+      aria-selected={activeSub === "response"}
+      class:active={activeSub === "response"}
+      onclick={() => (activeSub = "response")}
+    >
+      Response <span class="count">({respCount})</span>
+    </button>
+    <button
+      role="tab"
+      aria-selected={activeSub === "request"}
+      class:active={activeSub === "request"}
+      onclick={() => (activeSub = "request")}
+    >
+      Request <span class="count">({reqCount})</span>
+    </button>
+    <span class="spacer"></span>
+    <button class="copy" onclick={copyActive} aria-label="Copy visible section">
+      Copy {activeSub === "response" ? "response" : "request"} headers
+    </button>
+  </nav>
 
-  <div class="section">
-    <header>
-      <button class="toggle" onclick={() => (reqOpen = !reqOpen)} aria-expanded={reqOpen}>
-        {reqOpen ? "▾" : "▸"} Request headers ({Object.keys(requestHeaders).length})
-      </button>
-      {#if reqOpen}
-        <button onclick={() => copySection(requestHeaders)} aria-label="Copy request headers">Copy</button>
-      {/if}
-    </header>
-    {#if reqOpen}
-      <dl>
-        {#each sortedEntries(requestHeaders) as [k, v]}
-          <dt>{k}</dt>
-          <dd>
-            {#if isRedacted(k) && !revealed.has("q:" + k)}
-              <button class="reveal" onclick={() => toggleReveal("q:" + k)}>[show]</button>
-              <span class="redacted">***</span>
-            {:else}
-              <span>{v}</span>
-              {#if isRedacted(k)}
-                <button class="reveal" onclick={() => toggleReveal("q:" + k)}>[hide]</button>
-              {/if}
-            {/if}
-          </dd>
-        {/each}
-      </dl>
-    {/if}
-  </div>
+  <dl>
+    {#each sortedEntries(activeHeaders) as [k, v]}
+      {@const revealKey = `${activeSub[0]}:${k}`}
+      <dt>{k}</dt>
+      <dd>
+        {#if isRedacted(k) && !revealed.has(revealKey)}
+          <button class="reveal" onclick={() => toggleReveal(revealKey)}>[show]</button>
+          <span class="redacted">***</span>
+        {:else}
+          <span>{v}</span>
+          {#if isRedacted(k)}
+            <button class="reveal" onclick={() => toggleReveal(revealKey)}>[hide]</button>
+          {/if}
+        {/if}
+      </dd>
+    {/each}
+  </dl>
+
+  {#if activeCount === 0}
+    <p class="empty">No headers.</p>
+  {/if}
 </section>
 
 <style>
-  .hdr { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-4); overflow: auto; height: 100%; }
-  .section header {
+  .hdr {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-mono);
+  }
+  .sub-tabs {
+    display: flex;
     align-items: center;
-    margin-bottom: var(--space-2);
-  }
-  .label {
-    color: var(--fg-dim);
+    gap: 0;
+    padding: 4px var(--space-3);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
     font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
-  button {
+  .sub-tabs button {
     font: inherit;
     background: transparent;
     color: var(--fg-dim);
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .sub-tabs button:hover {
+    color: var(--accent);
+  }
+  .sub-tabs button.active {
+    color: var(--fg);
+    background: var(--bg-raised);
+    border-color: var(--border);
+    border-bottom-color: var(--accent);
+  }
+  .sub-tabs .count {
+    color: var(--fg-dim);
+  }
+  .sub-tabs .spacer {
+    flex: 1;
+  }
+  .sub-tabs .copy {
     border: 1px solid var(--border);
     padding: 2px 8px;
-    cursor: pointer;
-    font-size: 11px;
   }
-  button:hover { color: var(--accent); border-color: var(--accent); }
-  button.toggle {
-    border: none;
-    padding: 0;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  .sub-tabs .copy:hover {
+    border-color: var(--accent);
   }
+
   dl {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px var(--space-3);
     margin: 0;
-    font-family: var(--font-mono);
+    padding: var(--space-3);
     font-size: 12px;
+    overflow: auto;
+    flex: 1;
   }
-  dt { color: var(--fg-dim); }
-  dd { color: var(--fg); margin: 0; overflow-wrap: anywhere; }
-  .redacted { color: var(--fg-dim); }
-  button.reveal {
+  dt {
+    color: var(--fg-dim);
+  }
+  dd {
+    color: var(--fg);
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .redacted {
+    color: var(--fg-dim);
+  }
+  .reveal {
+    font: inherit;
+    background: transparent;
     border: none;
     padding: 0 6px 0 0;
     color: var(--fg-dim);
     font-size: 11px;
+    cursor: pointer;
+  }
+  .reveal:hover {
+    color: var(--accent);
+  }
+  .empty {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 12px;
   }
 </style>
