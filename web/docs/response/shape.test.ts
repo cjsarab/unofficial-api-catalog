@@ -127,6 +127,7 @@ describe("shape.decompose — peer tables + edge cases", () => {
       kind: "count-link",
       count: 2,
       targetTablePath: "$[0].children",
+      parentRowId: "A",
     });
     // Peer: _parent_id = "A" (from scalar id) + n column.
     const peer = tables[1]!;
@@ -295,5 +296,31 @@ describe("shape.decompose — peer tables + edge cases", () => {
     // Each row's _parent_idx is the integer index of its originating parent.
     expect(peer!.rows[0]!["_parent_idx"]).toEqual({ kind: "scalar", value: 0 });
     expect(peer!.rows[1]!["_parent_idx"]).toEqual({ kind: "scalar", value: 1 });
+  });
+
+  test("count_link carries parentRowId from the owning row's scalar id", () => {
+    const tables = decompose([
+      { id: "A", children: [{ n: 1 }, { n: 2 }] },
+      { id: "B", children: [{ n: 3 }] },
+    ]);
+    const primary = tables[0]!;
+    const cellA = primary.rows[0]!["children"]!;
+    const cellB = primary.rows[1]!["children"]!;
+    expect(cellA.kind).toBe("count-link");
+    expect(cellB.kind).toBe("count-link");
+    if (cellA.kind === "count-link") expect(cellA.parentRowId).toBe("A");
+    if (cellB.kind === "count-link") expect(cellB.parentRowId).toBe("B");
+  });
+
+  test("count_link parentRowId falls back to row index when no scalar id", () => {
+    const tables = decompose([
+      { values: [{ n: 1 }] },
+      { values: [{ n: 2 }] },
+    ]);
+    const primary = tables[0]!;
+    const cell0 = primary.rows[0]!["values"]!;
+    const cell1 = primary.rows[1]!["values"]!;
+    if (cell0.kind === "count-link") expect(cell0.parentRowId).toBe(0);
+    if (cell1.kind === "count-link") expect(cell1.parentRowId).toBe(1);
   });
 });

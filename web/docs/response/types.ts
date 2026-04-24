@@ -56,7 +56,7 @@ export type CellValue =
   | { kind: "scalar"; value: string | number | boolean | null }
   | { kind: "chip-array"; count: number; jumpPath: string }
   | { kind: "chip-object"; keyCount: number; jumpPath: string }
-  | { kind: "count-link"; count: number; targetTablePath: string };
+  | { kind: "count-link"; count: number; targetTablePath: string; parentRowId?: string | number };
 
 export type Row = { [columnKey: string]: CellValue };
 

@@ -4,7 +4,7 @@
   type Props = {
     table: DecomposedTable;
     /** Called when a count-link cell is clicked. */
-    onNavigate?: (targetPath: string) => void;
+    onNavigate?: (targetPath: string, parentRowId?: string | number) => void;
     /** Called when a chip cell is clicked (jump to Raw). */
     onJumpToRaw?: (jumpPath: string) => void;
   };
@@ -89,7 +89,7 @@
                 {:else if cell.kind === "chip-object"}
                   <button class="chip" onclick={() => onJumpToRaw?.(cell.jumpPath)}>{`{${cell.keyCount}}`}</button>
                 {:else if cell.kind === "count-link"}
-                  <button class="chip" onclick={() => onNavigate?.(cell.targetTablePath)}>→ {cell.count} {cell.count === 1 ? "row" : "rows"}</button>
+                  <button class="chip" onclick={() => onNavigate?.(cell.targetTablePath, cell.parentRowId)}>→ {cell.count} {cell.count === 1 ? "row" : "rows"}</button>
                 {/if}
               </td>
             {/each}

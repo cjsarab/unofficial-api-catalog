@@ -273,7 +273,7 @@ function emitTable(
           cols.ensure(childLabel, "count-link");
           const row: Row = {
             _idx: { kind: "scalar", value: i },
-            [childLabel]: { kind: "count-link", count: inner.length, targetTablePath: childPath },
+            [childLabel]: { kind: "count-link", count: inner.length, targetTablePath: childPath, parentRowId: i },
           };
           if (parentIdKey) row[parentIdKey] = { kind: "scalar", value: parentRowId };
           rows.push(row);
@@ -463,6 +463,7 @@ function flattenInto(
           kind: "count-link",
           count: v.length,
           targetTablePath: targetPath,
+          parentRowId: parentScalarId !== null ? parentScalarId : rowIdx,
         };
 
         // Build (or extend) the peer. We keep ONE peer per peerPath to aggregate.
@@ -577,7 +578,7 @@ function appendChildrenToPeer(
       peer.nestedPeers.push(inner);
       const childRow: Row = {
         _idx: { kind: "scalar", value: i },
-        [label]: { kind: "count-link", count: child.length, targetTablePath: grandchildPath },
+        [label]: { kind: "count-link", count: child.length, targetTablePath: grandchildPath, parentRowId: i },
       };
       peer.rows.push(childRow);
       recordProvenance();
@@ -642,7 +643,7 @@ function buildPeerTableForArray(
       peer.cols.ensure(lbl, "count-link");
       const childRow: Row = {
         _idx: { kind: "scalar", value: i },
-        [lbl]: { kind: "count-link", count: item.length, targetTablePath: `${peer.path}[${i}]` },
+        [lbl]: { kind: "count-link", count: item.length, targetTablePath: `${peer.path}[${i}]`, parentRowId: i },
       };
       childRow[parentIdKey] = { kind: "scalar", value: parentIdxValue };
       peer.rows.push(childRow);

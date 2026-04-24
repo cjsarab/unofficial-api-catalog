@@ -16,18 +16,34 @@
 
   const tables = $derived<DecomposedTable[]>(json === null ? [] : decompose(json));
   let selectedPath = $state<string>("");
+  let navFilter = $state<string | number | null>(null);
 
   $effect(() => {
     // Whenever the table list changes, pick a sane default selection.
     if (tables.length === 0) return;
     if (!tables.find((t) => t.path === selectedPath)) {
       selectedPath = tables[0].path;
+      navFilter = null;
     }
   });
 
   const selectedTable = $derived<DecomposedTable | null>(
     tables.find((t) => t.path === selectedPath) ?? null,
   );
+
+  const displayedTable = $derived.by<DecomposedTable | null>(() => {
+    if (!selectedTable) return null;
+    if (navFilter === null) return selectedTable;
+    const keyCol = selectedTable.columns.find(
+      (c) => c.kind === "synthetic" && (c.key === "_parent_id" || c.key === "_parent_idx"),
+    );
+    if (!keyCol) return selectedTable;
+    const filteredRows = selectedTable.rows.filter((row) => {
+      const cell = row[keyCol.key];
+      return cell?.kind === "scalar" && cell.value === navFilter;
+    });
+    return { ...selectedTable, rows: filteredRows };
+  });
 
   const breadcrumbs = $derived.by(() => {
     if (!selectedTable) return [] as DecomposedTable[];
@@ -61,18 +77,18 @@
         <TableRail
           tables={tables}
           activePath={selectedPath}
-          onSelect={(p) => (selectedPath = p)}
+          onSelect={(p) => { selectedPath = p; navFilter = null; }}
         />
       {/if}
       <div class="content">
-        {#if selectedTable}
+        {#if selectedTable && displayedTable}
           <div class="crumbs">
             <span class="path-label">
               {#if breadcrumbs.length > 1}
                 {#each breadcrumbs as crumb, i}
                   {#if i > 0}<span class="sep"> / </span>{/if}
                   {#if i < breadcrumbs.length - 1}
-                    <a onclick={() => (selectedPath = crumb.path)} role="button" tabindex="0">{crumb.label}</a>
+                    <a onclick={() => { selectedPath = crumb.path; navFilter = null; }} role="button" tabindex="0">{crumb.label}</a>
                   {:else}
                     <strong>{crumb.label}</strong>
                   {/if}
@@ -82,13 +98,20 @@
               {/if}
             </span>
             <span class="meta">
-              {selectedTable.rows.length} rows · {selectedTable.columns.length} cols
+              {displayedTable.rows.length} rows · {displayedTable.columns.length} cols
               {#if selectedTable.rangeNote}&nbsp;· heterogeneous run {selectedTable.rangeNote}{/if}
             </span>
           </div>
+          {#if navFilter !== null}
+            <div class="filter-banner">
+              Filtering by parent: <code>{navFilter}</code>
+              <span class="dim">· {displayedTable.rows.length} of {selectedTable.rows.length} rows</span>
+              <button onclick={() => (navFilter = null)} aria-label="Clear filter">× clear</button>
+            </div>
+          {/if}
           <DataTable
-            table={selectedTable}
-            onNavigate={(p) => (selectedPath = p)}
+            table={displayedTable}
+            onNavigate={(p, pid) => { selectedPath = p; navFilter = pid ?? null; }}
             onJumpToRaw={onJumpToRaw}
           />
         {/if}
@@ -122,6 +145,35 @@
   .crumbs strong { color: var(--fg); font-weight: normal; }
   .crumbs .sep { color: var(--fg-dim); padding: 0 4px; }
   .crumbs .meta { color: var(--fg-dim); }
+  .filter-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 4px var(--space-3);
+    background: color-mix(in srgb, var(--accent) 15%, var(--bg-panel) 85%);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--fg);
+    font-family: var(--font-mono);
+  }
+  .filter-banner code {
+    font-family: inherit;
+    background: var(--bg-raised);
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+  }
+  .filter-banner .dim { color: var(--fg-dim); }
+  .filter-banner button {
+    margin-left: auto;
+    font: inherit;
+    background: transparent;
+    color: var(--fg-dim);
+    border: 1px solid var(--border);
+    padding: 1px 8px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .filter-banner button:hover { color: var(--accent); border-color: var(--accent); }
   .not-tabular {
     padding: var(--space-5);
     color: var(--fg);
