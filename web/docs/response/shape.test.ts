@@ -113,3 +113,157 @@ describe("shape.decompose — flatten + chips", () => {
     expect(cell.kind).toBe("chip-array");
   });
 });
+
+describe("shape.decompose — peer tables + edge cases", () => {
+  test("nested_one_level: object has array-of-objects field → peer table", () => {
+    const tables = decompose([
+      { id: "A", children: [{ n: 1 }, { n: 2 }] },
+    ]);
+    expect(paths(tables)).toEqual(["$", "$[*].children"]);
+    // Parent table: id column + count-link to children.
+    const parent = tables[0]!;
+    expect(parent.columns.map((c) => c.key).sort()).toEqual(["children", "id"]);
+    expect(parent.rows[0]!["children"]).toEqual({
+      kind: "count-link",
+      count: 2,
+      targetTablePath: "$[0].children",
+    });
+    // Peer: _parent_id = "A" (from scalar id) + n column.
+    const peer = tables[1]!;
+    expect(peer.columns.map((c) => c.key)).toEqual(["_parent_id", "n"]);
+    expect(peer.rows[0]!["_parent_id"]).toEqual({ kind: "scalar", value: "A" });
+    expect(peer.rows[0]!["n"]).toEqual({ kind: "scalar", value: 1 });
+    expect(peer.depth).toBe(1);
+  });
+
+  test("_parent_idx fallback when parent has no scalar id", () => {
+    const tables = decompose([
+      { values: [{ n: 1 }] },
+    ]);
+    const peer = tables[1]!;
+    // No id/guid/code/key on parent → synthesised _parent_idx.
+    expect(peer.columns.map((c) => c.key)).toEqual(["_parent_idx", "n"]);
+    expect(peer.rows[0]!["_parent_idx"]).toEqual({ kind: "scalar", value: 0 });
+    expect(peer.columns[0]!.synthNote).toBe("Row index of parent — no scalar id found");
+  });
+
+  test("parent_id_priority: id beats guid beats code beats key", () => {
+    const tables = decompose([
+      { guid: "G", code: "C", key: "K", id: "ID", items: [{ x: 1 }] },
+    ]);
+    expect(tables[1]!.rows[0]!["_parent_id"]).toEqual({ kind: "scalar", value: "ID" });
+  });
+
+  test("object_collapses_wrapper: { data: [arrayOfObjects] } → single promoted table", () => {
+    const tables = decompose({ data: [{ id: "a" }, { id: "b" }] });
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.path).toBe("$.data");
+    expect(tables[0]!.rows).toHaveLength(2);
+  });
+
+  test("object_no_collapse_wrapper: { data: [...], meta: {...} } stays as primary + peer", () => {
+    const tables = decompose({ data: [{ id: "a" }], meta: { total: 1 } });
+    expect(paths(tables).sort()).toEqual(["$", "$.data"].sort());
+    // Primary ($) has meta flattened + data as count-link.
+    expect(tables[0]!.columns.map((c) => c.key).sort()).toEqual(["data", "meta.total"].sort());
+  });
+
+  test("pass_through_wrapper_row: object with only array fields gets _idx", () => {
+    const tables = decompose([{ academicLevels: [{ priority: "primary" }] }]);
+    // Primary: synthetic _idx + count-link for academicLevels.
+    expect(tables[0]!.columns.map((c) => c.key)).toEqual(["_idx", "academicLevels"]);
+    expect(tables[0]!.rows[0]!["_idx"]).toEqual({ kind: "scalar", value: 0 });
+    // Peer exists.
+    expect(tables[1]!.path).toBe("$[0].academicLevels");
+  });
+
+  test("nested_five_levels: programs → terms → sections → meetings → attendance", () => {
+    const tables = decompose([
+      {
+        code: "CS-BS",
+        terms: [
+          {
+            termCode: "2026FA",
+            sections: [
+              {
+                crn: "12345",
+                meetings: [
+                  {
+                    day: "MW",
+                    attendance: [
+                      { date: "2026-09-01", count: 42 },
+                      { date: "2026-09-03", count: 40 },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(paths(tables)).toEqual([
+      "$",
+      "$[*].terms",
+      "$[*].terms[*].sections",
+      "$[*].terms[*].sections[*].meetings",
+      "$[*].terms[*].sections[*].meetings[*].attendance",
+    ]);
+    // Depths are 0..4.
+    expect(tables.map((t) => t.depth)).toEqual([0, 1, 2, 3, 4]);
+    // Leaf table has 2 attendance rows.
+    expect(tables[4]!.rows).toHaveLength(2);
+    expect(tables[4]!.columns.map((c) => c.key).sort()).toEqual(["_parent_idx", "count", "date"]);
+  });
+
+  test("array_of_arrays at the root emits one peer table per inner array", () => {
+    const tables = decompose([
+      [{ a: 1 }, { a: 2 }],
+      [{ a: 3 }],
+    ]);
+    // Primary table: row per outer item, each a count-link to its inner.
+    expect(paths(tables)).toEqual(["$", "$[0]", "$[1]"]);
+    expect(tables[0]!.rows[0]![tables[0]!.columns.find((c) => c.kind === "count-link")!.key]!.kind).toBe("count-link");
+  });
+
+  test("heterogeneous_array splits into contiguous-run peer tables", () => {
+    const tables = decompose([
+      { a: 1 },
+      { a: 2 },
+      [{ b: 1 }],
+      "scalar",
+      { a: 3 },
+    ]);
+    // Primary $ retains nothing coherent; we split runs by kind.
+    // Split into: $[0..1] (obj run), $[2] (arr), $[3] (scalar), $[4] (obj).
+    const nonPrimary = tables.filter((t) => t.path !== "$");
+    expect(nonPrimary.map((t) => t.path).sort()).toEqual(
+      ["$[0..1]", "$[2]", "$[3]", "$[4]"].sort(),
+    );
+  });
+
+  test("keys_with_dots are bracket-escaped in column keys and paths", () => {
+    const tables = decompose([
+      { "my.odd.key": "v", other: { "a.b": 1 } },
+    ]);
+    const cols = tables[0]!.columns.map((c) => c.key);
+    expect(cols).toContain('["my.odd.key"]');
+    // Nested dotted-flatten also escapes: column becomes other.["a.b"]
+    expect(cols).toContain('other.["a.b"]');
+  });
+
+  test("wide_union truncates column display with hiddenColumnCount", () => {
+    const row: Record<string, number> = {};
+    for (let i = 0; i < 40; i++) row[`c${i.toString().padStart(2, "0")}`] = i;
+    const tables = decompose([row]);
+    expect(tables[0]!.hiddenColumnCount).toBe(20);
+    expect(tables[0]!.columns).toHaveLength(20);
+  });
+
+  test("error_response_shape: { error, detail } → 2-col KV", () => {
+    const tables = decompose({ error: "no-api-key", detail: "env 'x' has no key" });
+    expect(tables).toHaveLength(1);
+    expect(tables[0]!.rows).toHaveLength(1);
+    expect(tables[0]!.columns.map((c) => c.key).sort()).toEqual(["detail", "error"]);
+  });
+});
