@@ -144,9 +144,30 @@ interface PendingPeer {
   cols: ReturnType<typeof makeColumnBuilder>;
   nestedPeers: PendingPeer[];     // deeper peers collected during child flattening
   rangeNote?: string;
+  // Per-child provenance for the synthetic parent-id column. We defer the
+  // column's name/values until finalize so we can degrade uniformly to
+  // "_parent_idx" when any contributing parent lacks a scalar id.
+  parentIds?: (string | number | null)[];
+  parentIdxs?: number[];
+  anyParentLackedScalarId?: boolean;
 }
 
 function flushPeer(peer: PendingPeer, tables: DecomposedTable[]): void {
+  // Reconcile the synthetic parent-id column across all contributing parents.
+  if (peer.parentIds && peer.parentIdxs && peer.rows.length > 0) {
+    const useIdx = peer.anyParentLackedScalarId === true;
+    const key = useIdx ? "_parent_idx" : "_parent_id";
+    peer.cols.ensure(
+      key,
+      "synthetic",
+      useIdx ? "Row index of parent — no scalar id found" : undefined,
+    );
+    peer.rows.forEach((row, i) => {
+      const value = useIdx ? peer.parentIdxs![i]! : peer.parentIds![i]!;
+      row[key] = { kind: "scalar", value };
+    });
+  }
+
   const finalised = peer.cols.finalize();
   tables.push({
     path: peer.path,
@@ -172,13 +193,14 @@ function emitTable(
   parentRowId: string | number | null,
   tables: DecomposedTable[],
   rangeNote: string | undefined,
+  suppressParentId: boolean = false,
 ): void {
   const rows: Row[] = [];
   const cols = makeColumnBuilder();
   const pendingPeers: PendingPeer[] = [];
 
   const parentIdKey: string | null =
-    parentPath === null
+    parentPath === null || suppressParentId
       ? null
       : typeof parentRowId === "number"
         ? "_parent_idx"
@@ -214,7 +236,9 @@ function emitTable(
           const runRange = run.from === run.to ? `[${run.from}]` : `[${run.from}..${run.to}]`;
           const runPath = `${path}${runRange}`;
           const runLabel = labelFor(runPath, runRange);
-          emitRun(run, runPath, path, runLabel, depth + 1, parentRowId, tables, runRange);
+          // Heterogeneous-run peers have no rows on their parent to join to —
+          // suppress the synthetic parent-id column entirely.
+          emitRun(run, runPath, path, runLabel, depth + 1, parentRowId, tables, runRange, true);
         }
         return;
       }
@@ -308,14 +332,15 @@ function emitRun(
   parentRowId: string | number | null,
   tables: DecomposedTable[],
   rangeNote: string,
+  suppressParentId: boolean = false,
 ): void {
   const kind = run.items.length > 0 ? itemKind(run.items[0]!) : "scalar";
   if (kind === "arr" && run.items.length === 1 && isArray(run.items[0]!)) {
     // Unwrap: the single inner array is this table's content.
-    emitTable(run.items[0]!, runPath, parentPath, label, depth, parentRowId, tables, rangeNote);
+    emitTable(run.items[0]!, runPath, parentPath, label, depth, parentRowId, tables, rangeNote, suppressParentId);
   } else {
     // Pass the run.items as an array to emitTable; it will treat them per kind.
-    emitTable(run.items, runPath, parentPath, label, depth, parentRowId, tables, rangeNote);
+    emitTable(run.items, runPath, parentPath, label, depth, parentRowId, tables, rangeNote, suppressParentId);
   }
 }
 
@@ -441,7 +466,6 @@ function flattenInto(
         };
 
         // Build (or extend) the peer. We keep ONE peer per peerPath to aggregate.
-        const parentIdForChildren = parentScalarId ?? rowIdx;
         const existing = pendingPeers.find((p) => p.path === peerPath);
         const peer = existing ?? newPeer(peerPath, thisRowPath, col, treeDepth + 1);
         if (!existing) pendingPeers.push(peer);
@@ -449,7 +473,8 @@ function flattenInto(
         appendChildrenToPeer(
           peer,
           v,
-          parentIdForChildren,
+          parentScalarId,
+          rowIdx,
           treeDepth + 1,
         );
       } else {
@@ -485,21 +510,28 @@ function newPeer(
     rows: [],
     cols,
     nestedPeers: [],
+    parentIds: [],
+    parentIdxs: [],
+    anyParentLackedScalarId: false,
   };
 }
 
 function appendChildrenToPeer(
   peer: PendingPeer,
   children: Json[],
-  parentRowId: string | number,
+  parentScalarId: string | number | null,
+  parentRowIdx: number,
   depth: number,
 ): void {
-  const parentIdKey = typeof parentRowId === "number" ? "_parent_idx" : "_parent_id";
-  peer.cols.ensure(
-    parentIdKey,
-    "synthetic",
-    parentIdKey === "_parent_idx" ? "Row index of parent — no scalar id found" : undefined,
-  );
+  // Track whether this contributing parent had a scalar id. The final peer
+  // column name (and values) is decided at flushPeer time: if ANY contributor
+  // lacked an id, the entire peer degrades to "_parent_idx" uniformly.
+  if (parentScalarId === null) peer.anyParentLackedScalarId = true;
+
+  const recordProvenance = () => {
+    peer.parentIds!.push(parentScalarId);
+    peer.parentIdxs!.push(parentRowIdx);
+  };
 
   children.forEach((child, i) => {
     if (isObject(child)) {
@@ -532,8 +564,8 @@ function appendChildrenToPeer(
         peer.cols.ensure("_idx", "synthetic");
         childRow["_idx"] = { kind: "scalar", value: i };
       }
-      childRow[parentIdKey] = { kind: "scalar", value: parentRowId };
       peer.rows.push(childRow);
+      recordProvenance();
     } else if (isArray(child)) {
       // Array-of-arrays peer: each inner array → one row with count-link.
       peer.cols.ensure("_idx", "synthetic");
@@ -547,8 +579,8 @@ function appendChildrenToPeer(
         _idx: { kind: "scalar", value: i },
         [label]: { kind: "count-link", count: child.length, targetTablePath: grandchildPath },
       };
-      childRow[parentIdKey] = { kind: "scalar", value: parentRowId };
       peer.rows.push(childRow);
+      recordProvenance();
     }
   });
 }
@@ -563,6 +595,10 @@ function buildPeerTableForArray(
   parentIdxValue: number,
 ): PendingPeer {
   const peer = newPeer(path, parentPath, label, depth);
+  // Array-of-arrays peers own their synthetic column directly (single parent
+  // contributor, always index-based). Opt out of deferred reconciliation.
+  peer.parentIds = undefined;
+  peer.parentIdxs = undefined;
   const parentIdKey = "_parent_idx";
   peer.cols.ensure(parentIdKey, "synthetic", "Row index of parent — no scalar id found");
 

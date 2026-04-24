@@ -266,4 +266,34 @@ describe("shape.decompose — peer tables + edge cases", () => {
     expect(tables[0]!.rows).toHaveLength(1);
     expect(tables[0]!.columns.map((c) => c.key).sort()).toEqual(["detail", "error"]);
   });
+
+  test("heterogeneous_array peer tables have no _parent_id column", () => {
+    const tables = decompose([
+      { a: 1 },
+      { a: 2 },
+      [{ b: 1 }],
+      "scalar",
+    ]);
+    const nonPrimary = tables.filter((t) => t.path !== "$");
+    for (const peer of nonPrimary) {
+      const synthetic = peer.columns.filter((c) => c.kind === "synthetic");
+      const names = synthetic.map((c) => c.key);
+      expect(names).not.toContain("_parent_id");
+      expect(names).not.toContain("_parent_idx");
+    }
+  });
+
+  test("mixed_id_availability degrades to _parent_idx for the whole peer", () => {
+    const tables = decompose([
+      { id: "A", items: [{ n: 1 }] },
+      { label: "x", items: [{ n: 2 }] },
+    ]);
+    const peer = tables.find((t) => t.path === "$[*].items");
+    expect(peer).toBeDefined();
+    const names = peer!.columns.filter((c) => c.kind === "synthetic").map((c) => c.key);
+    expect(names).toEqual(["_parent_idx"]);
+    // Each row's _parent_idx is the integer index of its originating parent.
+    expect(peer!.rows[0]!["_parent_idx"]).toEqual({ kind: "scalar", value: 0 });
+    expect(peer!.rows[1]!["_parent_idx"]).toEqual({ kind: "scalar", value: 1 });
+  });
 });
