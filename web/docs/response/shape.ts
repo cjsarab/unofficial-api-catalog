@@ -457,12 +457,13 @@ function flattenInto(
         const peerPath = insideArray && !isPassThroughParent
           ? `${rootStripIndex(thisRowPath)}.${col}`   // e.g. "$[*].children"
           : `${thisRowPath}.${col}`;                  // e.g. "$.data" or "$[0].academicLevels"
-        const targetPath = `${thisRowPath}.${col}`;   // always concrete for count-link
         cols.ensure(col, "count-link");
         row[col] = {
           kind: "count-link",
           count: v.length,
-          targetTablePath: targetPath,
+          // Must match the aggregated peer's emitted path — wildcard for
+          // non-pass-through parents inside an outer array, concrete otherwise.
+          targetTablePath: peerPath,
           parentRowId: parentScalarId !== null ? parentScalarId : rowIdx,
         };
 

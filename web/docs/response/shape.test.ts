@@ -126,7 +126,7 @@ describe("shape.decompose — peer tables + edge cases", () => {
     expect(parent.rows[0]!["children"]).toEqual({
       kind: "count-link",
       count: 2,
-      targetTablePath: "$[0].children",
+      targetTablePath: "$[*].children",
       parentRowId: "A",
     });
     // Peer: _parent_id = "A" (from scalar id) + n column.
@@ -322,5 +322,37 @@ describe("shape.decompose — peer tables + edge cases", () => {
     const cell1 = primary.rows[1]!["values"]!;
     if (cell0.kind === "count-link") expect(cell0.parentRowId).toBe(0);
     if (cell1.kind === "count-link") expect(cell1.parentRowId).toBe(1);
+  });
+
+  test("count_link targetTablePath matches the emitted peer table path", () => {
+    const tables = decompose([
+      { id: "A", children: [{ n: 1 }] },
+      { id: "B", children: [{ n: 2 }] },
+    ]);
+    const peer = tables.find((t) => t.label === "children");
+    expect(peer).toBeDefined();
+    const peerPath = peer!.path;
+
+    // Every count-link pointing at `children` should target the peer's actual path.
+    const primary = tables[0]!;
+    for (const row of primary.rows) {
+      const cell = row["children"];
+      if (cell?.kind === "count-link") {
+        expect(cell.targetTablePath).toBe(peerPath);
+      }
+    }
+  });
+
+  test("count_link targetTablePath uses concrete index when parent is pass-through wrapper", () => {
+    const tables = decompose([{ academicLevels: [{ priority: "primary" }] }]);
+    // Pass-through: parent has only array fields → peer uses concrete [0] segment.
+    const peer = tables[1]!;
+    expect(peer.path).toBe("$[0].academicLevels");   // concrete, already asserted elsewhere
+    const primary = tables[0]!;
+    const cell = primary.rows[0]!["academicLevels"];
+    expect(cell?.kind).toBe("count-link");
+    if (cell?.kind === "count-link") {
+      expect(cell.targetTablePath).toBe("$[0].academicLevels");
+    }
   });
 });
