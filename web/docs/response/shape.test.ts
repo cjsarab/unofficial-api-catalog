@@ -61,3 +61,55 @@ describe("shape.decompose — basics", () => {
     expect(tables[0]!.rows[0]!["id"]).toEqual({ kind: "scalar", value: "a" });
   });
 });
+
+describe("shape.decompose — flatten + chips", () => {
+  test("dotted_flatten_depth_3: 3-deep object flattens, 4th level chips", () => {
+    const tables = decompose([
+      { a: { b: { c: { d: "deep" } } } },
+    ]);
+    const cols = tables[0]!.columns.map((c) => c.key);
+    // a.b.c is the terminal column (flatten depth 3 = a -> a.b -> a.b.c). The 'd' key lives under c, past the budget.
+    expect(cols).toEqual(["a.b.c"]);
+    // Cell is a chip-object pointing at the remaining object { d: "deep" }.
+    const cell = tables[0]!.rows[0]!["a.b.c"]!;
+    expect(cell.kind).toBe("chip-object");
+    if (cell.kind === "chip-object") {
+      expect(cell.keyCount).toBe(1);
+      expect(cell.jumpPath).toBe("$[0].a.b.c");
+    }
+  });
+
+  test("dotted_flatten: 2-deep object produces flat scalar columns (no chip)", () => {
+    const tables = decompose([
+      { outer: { inner: "X", deeper: 42 } },
+    ]);
+    const cols = tables[0]!.columns.map((c) => c.key);
+    expect(cols).toEqual(["outer.deeper", "outer.inner"]);
+    expect(tables[0]!.rows[0]!["outer.inner"]).toEqual({ kind: "scalar", value: "X" });
+    expect(tables[0]!.rows[0]!["outer.deeper"]).toEqual({ kind: "scalar", value: 42 });
+    expect(tables[0]!.columns.find((c) => c.key === "outer.inner")?.kind).toBe("dotted");
+  });
+
+  test("array_of_scalars_field becomes a chip-array in the row", () => {
+    const tables = decompose([
+      { id: "a", tags: ["red", "blue"] },
+    ]);
+    // Only one table — tags is scalars, stays in-row as chip-array.
+    expect(tables).toHaveLength(1);
+    const cell = tables[0]!.rows[0]!["tags"]!;
+    expect(cell.kind).toBe("chip-array");
+    if (cell.kind === "chip-array") {
+      expect(cell.count).toBe(2);
+      expect(cell.jumpPath).toBe("$[0].tags");
+    }
+  });
+
+  test("mixed_type_array_field is rendered as a chip-array", () => {
+    const tables = decompose([
+      { id: "a", mixed: [1, "two", { x: 3 }] },
+    ]);
+    expect(tables).toHaveLength(1); // mixed arrays don't become peer tables in this task
+    const cell = tables[0]!.rows[0]!["mixed"]!;
+    expect(cell.kind).toBe("chip-array");
+  });
+});

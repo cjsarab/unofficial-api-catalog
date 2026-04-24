@@ -135,13 +135,7 @@ function rowFor(
     cols.ensure("value", "scalar");
     row["value"] = { kind: "scalar", value: item };
   } else if (isObject(item)) {
-    for (const [k, v] of Object.entries(item)) {
-      if (isScalar(v)) {
-        cols.ensure(k, "scalar");
-        row[k] = { kind: "scalar", value: v } satisfies CellValue;
-      }
-      // other kinds handled in later task
-    }
+    flattenObject(item, "", row, cols, _itemPath, 0);
   }
 
   if (parentIdKey) {
@@ -149,4 +143,40 @@ function rowFor(
   }
 
   rows.push(row);
+}
+
+function flattenObject(
+  obj: { [k: string]: Json },
+  prefix: string,
+  row: Row,
+  cols: ReturnType<typeof makeColumnBuilder>,
+  parentPath: string,
+  flattenDepth: number,
+): void {
+  for (const [k, v] of Object.entries(obj)) {
+    const col = prefix ? `${prefix}.${k}` : k;
+    if (isScalar(v)) {
+      cols.ensure(col, prefix ? "dotted" : "scalar");
+      row[col] = { kind: "scalar", value: v };
+    } else if (isObject(v)) {
+      if (flattenDepth < 2) {
+        flattenObject(v, col, row, cols, parentPath, flattenDepth + 1);
+      } else {
+        cols.ensure(col, "nested-chip");
+        row[col] = {
+          kind: "chip-object",
+          keyCount: Object.keys(v).length,
+          jumpPath: `${parentPath}.${col}`,
+        };
+      }
+    } else if (isArray(v)) {
+      // Peer-table emission for array-of-objects lands in the next task; for now, treat every array as a chip.
+      cols.ensure(col, "nested-chip");
+      row[col] = {
+        kind: "chip-array",
+        count: v.length,
+        jumpPath: `${parentPath}.${col}`,
+      };
+    }
+  }
 }
