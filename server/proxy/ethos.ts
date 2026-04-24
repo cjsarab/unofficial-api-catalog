@@ -116,19 +116,23 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     const baseHeaders = filterIncomingHeaders(req.headers);
     const startedAt = performance.now();
 
-    async function attempt(): Promise<{ res: Response; outgoing: Headers }> {
-      const jwt = await opts.tokenCache.getJwt(activeId);
+    async function attempt(): Promise<{
+      res: Response; outgoing: Headers; authMs: number; requestMs: number;
+    }> {
+      const { jwt, authMs } = await opts.tokenCache.getJwt(activeId);
       const hdrs = new Headers(baseHeaders);
       hdrs.set("Authorization", `Bearer ${jwt}`);
+      const reqStart = performance.now();
       const res = await fetch(upstreamUrl, {
         method: req.method,
         headers: hdrs,
         body: incomingBody ?? undefined,
       });
-      return { res, outgoing: hdrs };
+      const requestMs = Math.round(performance.now() - reqStart);
+      return { res, outgoing: hdrs, authMs, requestMs };
     }
 
-    let first: { res: Response; outgoing: Headers };
+    let first: { res: Response; outgoing: Headers; authMs: number; requestMs: number };
     try {
       first = await attempt();
     } catch (err) {
@@ -138,18 +142,26 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
     let retried = false;
     const upstreamStatus = first.res.status;
 
+    // Accumulate auth time across retry — the one-shot refresh is itself a network hop worth reporting.
+    let totalAuthMs = first.authMs;
+    let totalRequestMs = first.requestMs;
+
     if (first.res.status === 401) {
       await first.res.arrayBuffer().catch(() => undefined);
       opts.tokenCache.invalidate(activeId);
       try {
         finalAttempt = await attempt();
         retried = true;
+        totalAuthMs += finalAttempt.authMs;
+        totalRequestMs += finalAttempt.requestMs;
       } catch (err) {
         return classifyFetchError(err);
       }
     }
 
+    const bodyStart = performance.now();
     const responseBytes = new Uint8Array(await finalAttempt.res.arrayBuffer());
+    const responseMs = Math.round(performance.now() - bodyStart);
     const durationMs = performance.now() - startedAt;
 
     const event: ProxyCompleteEvent = {
@@ -176,9 +188,16 @@ export function createEthosProxy(opts: EthosProxyOptions): RouteHandler {
       }
     }
 
+    const outHeaders = shapeResponseHeaders(finalAttempt.res.headers, upstreamStatus);
+    outHeaders.set("X-Proxy-Auth-Ms", String(totalAuthMs));
+    outHeaders.set("X-Proxy-Request-Ms", String(totalRequestMs));
+    outHeaders.set("X-Proxy-Response-Ms", String(responseMs));
+    outHeaders.set("X-Proxy-Request-Bytes", String(incomingBody?.byteLength ?? 0));
+    outHeaders.set("X-Proxy-Response-Bytes", String(responseBytes.byteLength));
+
     return new Response(responseBytes, {
       status: finalAttempt.res.status,
-      headers: shapeResponseHeaders(finalAttempt.res.headers, upstreamStatus),
+      headers: outHeaders,
     });
   };
 }

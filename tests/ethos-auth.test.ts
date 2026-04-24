@@ -76,7 +76,7 @@ describe("ethos auth token cache", () => {
     });
 
     const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
-    const jwt = await cache.getJwt(env.id);
+    const { jwt } = await cache.getJwt(env.id);
 
     expect(jwt).toBe(SAMPLE_JWT);
     expect(fixture.callCount).toBe(1);
@@ -93,7 +93,7 @@ describe("ethos auth token cache", () => {
     const first = await cache.getJwt(env.id);
     const second = await cache.getJwt(env.id);
 
-    expect(second).toBe(first);
+    expect(second.jwt).toBe(first.jwt);
     expect(fixture.callCount).toBe(1);
   });
 
@@ -110,6 +110,25 @@ describe("ethos auth token cache", () => {
     await cache.getJwt(env.id);
 
     expect(fixture.callCount).toBe(2);
+  });
+
+  test("authMs: non-zero on cache miss, zero on cache hit", async () => {
+    const secrets = createSecretStore(secretPath);
+    const envStore = createEnvironmentStore(envPath, secrets);
+    const env = envStore.add({
+      name: "test-env", production: false, apiKey: API_KEY,
+    });
+
+    const cache = createTokenCache(envStore, secrets, () => fixture.baseUrl);
+    const first = await cache.getJwt(env.id);
+    expect(first.jwt).toBeDefined();
+    expect(first.authMs).toBeGreaterThan(0);
+    expect(fixture.callCount).toBe(1);
+
+    const second = await cache.getJwt(env.id);
+    expect(second.jwt).toBe(first.jwt);
+    expect(second.authMs).toBe(0);
+    expect(fixture.callCount).toBe(1);                 // still 1 — cache hit, no fresh fetch
   });
 
   test("unknown envId throws not-found error", async () => {

@@ -402,6 +402,37 @@ describe("ethos request proxy", () => {
     expect(hookDoneAt).toBe(0);
   });
 
+  test("proxy response headers carry phase timings + byte counts", async () => {
+    upstream.set({
+      kind: "static",
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ok: true }),
+    });
+    const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
+
+    const [req, url] = proxyReq("GET", "/persons");
+    const res = await handler(req, url);
+    expect(res!.status).toBe(200);
+
+    // Numeric and present.
+    const auth = Number(res!.headers.get("X-Proxy-Auth-Ms"));
+    const requestMs = Number(res!.headers.get("X-Proxy-Request-Ms"));
+    const responseMs = Number(res!.headers.get("X-Proxy-Response-Ms"));
+    const reqBytes = Number(res!.headers.get("X-Proxy-Request-Bytes"));
+    const respBytes = Number(res!.headers.get("X-Proxy-Response-Bytes"));
+
+    expect(Number.isFinite(auth)).toBe(true);
+    expect(Number.isFinite(requestMs)).toBe(true);
+    expect(Number.isFinite(responseMs)).toBe(true);
+    expect(requestMs).toBeGreaterThanOrEqual(0);
+    expect(responseMs).toBeGreaterThanOrEqual(0);
+
+    // Bytes: request had no body, response body was {"ok":true} = 11 UTF-8 bytes.
+    expect(reqBytes).toBe(0);
+    expect(respBytes).toBe(11);
+  });
+
   test("rejecting onComplete does not crash subsequent calls", async () => {
     const handler = createEthosProxy({
       envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl,

@@ -2,8 +2,8 @@ import type { EnvironmentStore } from "../environments/store.ts";
 import type { SecretStore } from "./secrets.ts";
 
 export interface TokenCache {
-  /** Returns a valid JWT for the given env, fetching fresh if expired or invalidated. */
-  getJwt(envId: string): Promise<string>;
+  /** Returns a valid JWT for the given env. Also reports how long the fetch took (0 on cache hit). */
+  getJwt(envId: string): Promise<{ jwt: string; authMs: number }>;
   /** Drops the cached JWT for the given env. Next getJwt forces a fresh fetch. */
   invalidate(envId: string): void;
 }
@@ -73,8 +73,10 @@ export function createTokenCache(
   return {
     async getJwt(envId) {
       const hit = cache.get(envId);
-      if (hit && hit.expiresAt > Date.now()) return hit.jwt;
-      return fetchFresh(envId);
+      if (hit && hit.expiresAt > Date.now()) return { jwt: hit.jwt, authMs: 0 };
+      const t0 = performance.now();
+      const jwt = await fetchFresh(envId);
+      return { jwt, authMs: Math.round(performance.now() - t0) };
     },
     invalidate(envId) {
       cache.delete(envId);
