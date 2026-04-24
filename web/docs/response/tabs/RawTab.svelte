@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tokenize } from "../highlight.ts";
+  import { formatBytes } from "../format.ts";
 
   type Props = {
     bodyText: string;
@@ -69,7 +70,7 @@
     </label>
     <span class="spacer"></span>
     <span class="meta">
-      {isBinary ? "binary" : isJson ? "application/json" : (contentType ?? "plaintext")} · {bodyText.length} B
+      {isBinary ? "binary" : isJson ? "application/json" : (contentType ?? "plaintext")} · {formatBytes(bodyText.length)}
       {#if (isTooBig || isBinary) && !showAll}
         <button onclick={() => (showAll = true)}>
           Show all{isTooBig ? ` (${(bodyText.length / (1024*1024)).toFixed(2)} MB)` : ""}

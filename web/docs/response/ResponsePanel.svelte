@@ -4,6 +4,7 @@
   import RawTab from "./tabs/RawTab.svelte";
   import HeadersTab from "./tabs/HeadersTab.svelte";
   import TimingTab from "./tabs/TimingTab.svelte";
+  import { formatMs } from "./format.ts";
 
   type Props = ResponseView & {
     sending: boolean;
@@ -57,7 +58,7 @@
 <section class="panel">
   <header>
     <span class="status status-{statusClass}">{status} {statusText}</span>
-    <span class="duration">· {timings.totalMs} ms</span>
+    <span class="duration">· {formatMs(timings.totalMs)}</span>
     {#if sending}<span class="sending">· sending…</span>{/if}
     {#if errorBanner}<span class="banner">{errorBanner}</span>{/if}
     <span class="spacer"></span>

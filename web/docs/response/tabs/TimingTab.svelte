@@ -1,17 +1,12 @@
 <script lang="ts">
   import type { ResponseTimings, ResponseBytes } from "../types.ts";
+  import { formatBytes, formatMs } from "../format.ts";
 
   type Props = {
     timings: ResponseTimings;
     bytes: ResponseBytes;
   };
   let { timings, bytes }: Props = $props();
-
-  function formatBytes(b: number): string {
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-    return `${(b / (1024 * 1024)).toFixed(2)} MB`;
-  }
 
   const maxMs = $derived(
     Math.max(timings.authMs, timings.requestMs, timings.responseMs, timings.totalMs, 1),
@@ -34,7 +29,7 @@
         <div class="track">
           <div class="bar kind-{phase.kind}" style="width: {(phase.ms / maxMs) * 100}%"></div>
         </div>
-        <span class="ms">{phase.ms} ms</span>
+        <span class="ms">{formatMs(phase.ms)}</span>
       </div>
     {/each}
   </div>
