@@ -10,6 +10,7 @@
 
   const HEAD_SLICE_BYTES = 64 * 1024;
   const HEAD_THRESHOLD_BYTES = 1024 * 1024;
+  const TOKENIZE_MAX_BYTES = 200 * 1024;
 
   let prettyOn = $state(true);
   let lineNumbersOn = $state(false);
@@ -38,12 +39,14 @@
     return out.join("\n");
   }
 
+  const tokensTooBig = $derived(isJson && bodyText.length > TOKENIZE_MAX_BYTES);
+
   const displayText = $derived.by(() => {
     if (isBinary && !showAll) {
       return `Binary — ${bodyText.length} bytes. First 512 bytes:\n\n${hexHead(bodyText, 512)}`;
     }
     const source = isTooBig && !showAll ? bodyText.slice(0, HEAD_SLICE_BYTES) : bodyText;
-    if (!isJson || !prettyOn) return source;
+    if (!isJson || !prettyOn || tokensTooBig) return source;
     try {
       return JSON.stringify(JSON.parse(source), null, 2);
     } catch {
@@ -51,9 +54,15 @@
     }
   });
 
-  const tokens = $derived(isJson ? tokenize(displayText) : null);
+  const tokens = $derived(isJson && !tokensTooBig ? tokenize(displayText) : null);
 
-  const lines = $derived(displayText.split("\n"));
+  const lineNumberColumn = $derived.by(() => {
+    const n = displayText.split("\n").length;
+    // Build a single string "1\n2\n3...\nN" for the gutter.
+    const out: string[] = new Array(n);
+    for (let i = 0; i < n; i++) out[i] = String(i + 1);
+    return out.join("\n");
+  });
 
   function copy() {
     navigator.clipboard?.writeText(displayText).catch(() => { /* best effort */ });
@@ -63,11 +72,14 @@
 <section class="raw">
   <header>
     <label>
-      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson} /> Pretty
+      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || tokensTooBig} /> Pretty
     </label>
     <label>
       <input type="checkbox" bind:checked={lineNumbersOn} /> Line numbers
     </label>
+    {#if tokensTooBig}
+      <span class="note" title="Highlighting disabled to keep the panel responsive on large bodies.">highlighting off (large body)</span>
+    {/if}
     <span class="spacer"></span>
     <span class="meta">
       {isBinary ? "binary" : isJson ? "application/json" : (contentType ?? "plaintext")} · {formatBytes(bodyText.length)}
@@ -80,14 +92,12 @@
     <button onclick={copy} aria-label="Copy body">Copy</button>
   </header>
 
-  {#if lineNumbersOn}
-    <div class="body with-gutter">
-      <pre class="gutter">{lines.map((_, i) => i + 1).join("\n")}</pre>
-      <pre class="text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
-    </div>
-  {:else}
-    <pre class="body text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
-  {/if}
+  <div class="body" class:with-gutter={lineNumbersOn}>
+    {#if lineNumbersOn}
+      <pre class="gutter">{lineNumberColumn}</pre>
+    {/if}
+    <pre class="text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
+  </div>
 </section>
 
 <style>
@@ -111,6 +121,7 @@
   header label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
   header .spacer { flex: 1; }
   header .meta { color: var(--fg-dim); }
+  header .note { color: var(--fg-dim); font-size: 10px; }
   header button {
     font: inherit;
     background: transparent;
