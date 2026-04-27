@@ -91,6 +91,66 @@ The top-left area of the shell has no obvious way to return to the catalog overv
 
 ---
 
+## B-003 — Indexer doesn't fail gracefully when the client disconnects mid-scan
+
+**Severity:** medium · reliability · data correctness
+**Reported:** 2026-04-27
+
+If the user closes the browser tab (or the SPA navigates away) while the SSE indexer stream is mid-scan, two problems compound:
+
+1. **Server keeps running the scan.** The SSE handler at `server/routes/indexer.ts` (the `/api/index/scan-stream` branch) doesn't observe `req.signal`, so when the client disconnects the scan continues until it finishes. Wasted work; `controller.close()` will throw on enqueue afterward, but the `indexCatalog` promise marches on.
+2. **No atomic boundary on partial state.** `indexCatalog` writes to SQLite per-file as it parses. A crash, kill, or genuine indexer error mid-walk leaves the DB with a partial set of APIs and no clear "this index is incomplete" flag. The user sees a small subset and can't tell whether indexing finished or was interrupted.
+
+**Symptoms reported:** user closed the tab mid-indexing; came back to a catalog showing ~150 APIs out of ~4377; no UI hint that the index was incomplete. Recovery required stopping the dev server and manually deleting the SQLite files.
+
+**Fix direction:**
+- Wire `req.signal` into `indexCatalog` via an `AbortSignal` argument; check between files.
+- Add a `last_scan_status` row in `meta` (`running | complete | aborted | error` + start/finish timestamps). On launch, if `running`, the dashboard surfaces "indexing was interrupted last time — re-scan to complete".
+- Optional: per-file savepoints so an abort rolls back the in-progress file.
+
+---
+
+## QOL-003 — UI doesn't surface "indexing incomplete" state
+
+**Severity:** medium · user-experience
+**Reported:** 2026-04-27
+
+Related to B-003. When the index is partial (e.g. user-cancelled mid-scan), the dashboard / family tree / column dictionary all render whatever's there as if it were the complete catalog. There's no banner or status-bar hint that the index is in a known-incomplete state. The user has to remember "I closed the tab last time" to realize what they're seeing isn't the full catalog.
+
+**Fix direction:** once B-003's `last_scan_status` row exists, surface it as a status-bar chip + a one-line dashboard banner with a `Re-scan` action.
+
+---
+
+## B-004 — Schema migration has a self-heal gap on SCHEMA_VERSION bumps
+
+**Severity:** medium · data correctness · only triggers on a future bump
+**Reported:** 2026-04-27
+
+`migrate()` in `server/indexer/sqlite.ts` has two interacting shortcomings that bite on any future `SCHEMA_VERSION` bump:
+
+1. The wipe-rebuild branch (`if (current > 0 && current < SCHEMA_VERSION)`) drops content tables, but the only place that re-applies `SCHEMA_V1` is guarded by `if (current < 1)` — which is false on a 1→2+ bump. Tables get dropped and never recreated.
+2. After the (broken) wipe, `schema_version` in `meta` is updated to the new value, so the next launch hits `if (current === SCHEMA_VERSION) return;` — the half-migrated state is permanent without manual DB deletion.
+
+**Fix direction:** drop the early-return AND the `current < 1` guard. Always run `SCHEMA_V1` (idempotent via `CREATE TABLE IF NOT EXISTS`); only update the version row when it changed. That makes the function self-healing on any half-migrated state.
+
+```ts
+function migrate(db: Database): void {
+  db.exec(`CREATE TABLE IF NOT EXISTS meta (...)`);
+  const current = ...;
+  if (current > 0 && current < SCHEMA_VERSION) {
+    db.exec(`DROP TABLE IF EXISTS request_history; ...`);
+  }
+  db.exec(SCHEMA_V1);                                 // always; idempotent
+  if (current !== SCHEMA_VERSION) {
+    db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`).run(String(SCHEMA_VERSION));
+  }
+}
+```
+
+Apply this BEFORE the next schema bump or you'll burn an afternoon recovering from a half-migrated DB.
+
+---
+
 ## (closed items live below; moved here when shipped)
 
 <!-- none yet -->
