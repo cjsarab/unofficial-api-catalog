@@ -60,6 +60,29 @@ describe("migrate", () => {
     db2.close();
   });
 
+  test("refuses to open a DB with schema_version > SCHEMA_VERSION (downgrade)", async () => {
+    // Simulates a future binary writing schema_version=99 to the meta table,
+    // then an older binary trying to open the same DB. The buggy behaviour was
+    // silently writing schema_version=1 and leaving the DB in a phantom state;
+    // we now throw so the user must explicitly clear the index.
+    const dbPath = join(TEST_DIR, "downgrade.sqlite");
+
+    const db1 = openIndex(dbPath);
+    db1.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '99')`).run();
+    db1.close();
+
+    expect(() => openIndex(dbPath)).toThrow(/schema version 99/);
+
+    // Verify the offending version row wasn't silently overwritten.
+    const { Database } = await import("bun:sqlite");
+    const inspect = new Database(dbPath, { readonly: true });
+    const row = inspect
+      .query<{ value: string }, []>(`SELECT value FROM meta WHERE key = 'schema_version'`)
+      .get();
+    expect(row?.value).toBe("99");
+    inspect.close();
+  });
+
   test("self-heals a half-migrated DB where content tables were dropped but schema_version was already bumped", () => {
     // This simulates the B-004 bug-state: in the buggy migrate(), a 1→2+
     // bump would DROP the content tables, the early-return + `current < 1`

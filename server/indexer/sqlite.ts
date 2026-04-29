@@ -16,7 +16,15 @@ export function openIndex(path: string = INDEX_PATH): Database {
   db.exec("PRAGMA foreign_keys = ON");
   db.exec("PRAGMA temp_store = MEMORY");
 
-  migrate(db);
+  try {
+    migrate(db);
+  } catch (err) {
+    // Don't leak the file handle if migrate refuses (e.g. downgrade) — without
+    // this the SQLite file stays locked until the process exits, which breaks
+    // any caller trying to delete + recreate the index.
+    db.close();
+    throw err;
+  }
 
   // If the previous process was killed mid-scan, the meta row is stuck on
   // `running`. We're single-process, so any `running` we see on open is
@@ -57,7 +65,21 @@ function migrate(db: Database): void {
     .get();
   const current = row ? Number(row.value) : 0;
 
-  // Simple forward-only migration. On a version bump we wipe-rebuild the content
+  // Refuse to silently downgrade. If the DB was written by a newer binary
+  // (current > SCHEMA_VERSION), we don't know which tables/columns the future
+  // schema added. Quietly running SCHEMA_V1 + writing schema_version=current-1
+  // leaves the DB claiming an older version while still holding the newer
+  // shape. Throwing forces the user to either reinstall the newer binary or
+  // explicitly clear the index via /api/index/clear.
+  if (current > SCHEMA_VERSION) {
+    throw new Error(
+      `Index DB has schema version ${current} but this binary only knows version ${SCHEMA_VERSION}. ` +
+      `It looks like the catalog was indexed by a newer build. Either upgrade the app, or clear the ` +
+      `index from Settings → Catalog (or DELETE %APPDATA%\\api-catalog-explorer\\index.sqlite*) and re-scan.`,
+    );
+  }
+
+  // Forward-only migration. On a version bump we wipe-rebuild the content
   // tables — the catalog is the source of truth and re-indexing is fast.
   if (current > 0 && current < SCHEMA_VERSION) {
     db.exec(`
