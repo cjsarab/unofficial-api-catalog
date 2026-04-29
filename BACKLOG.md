@@ -105,6 +105,7 @@ Open items, newest at top.
 
 ### Closed in the 2026-04-29 post-audit pass
 
+- **B-012** — Bun.serve `idleTimeout` of 10s killed slow Ethos criteria calls → `bd1a406` _fix(server): raise Bun.serve idleTimeout to 255s_ (criteria queries that scan SPRIDEN-scale tables routinely run >10s; the proxy connection was being severed mid-flight and the client got a Network-error response with no JSON body, which manifested as "criteria broken + Table tab grayed out". Cap raised to Bun's 255s max so neither the proxy nor the SSE indexer scan are throttled)
 - **A1** — CriteriaFilter Raw mode wire-shape preservation → `10b209f` _fix(try): preserve raw-mode wire shape_ (Form→Raw round-trip rebuilt JSON in array-of-objects shape regardless of declared shape; CriteriaFilter is now shape-aware via `inferRootShapes`, and `criteriaRaw` per-param literal text override makes raw mode lossless)
 - **A2** — Unknown-rootKey wrap default → `10b209f` _(same commit)_ (URL builder defaulted to `[…]` when no description-derived shape was available; now defaults to plain `{…}` for safer preservation of user intent)
 - **A3** — Schema downgrade silent corruption → `13e5824` _fix(indexer): refuse to silently downgrade the index DB_ (newer DB read by older binary now throws instead of writing schema_version backwards; openIndex closes the handle on migrate failure to prevent EBUSY)
