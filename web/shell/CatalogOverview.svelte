@@ -23,6 +23,10 @@
   type Props = {
     onSelectColumn: (name: string) => void;
     onSelectTable: (name: string) => void;
+    /** App owns the summary fetch + re-fetch on rescan; we just render it.
+     *  Previously this component fetched independently, causing two requests
+     *  per overview render and stale stats after a rescan. */
+    summary: Summary | null;
     lastScan?: LastScan | null;
     rescanInFlight?: boolean;
     onRescan?: () => void;
@@ -30,6 +34,7 @@
   let {
     onSelectColumn,
     onSelectTable,
+    summary,
     lastScan = null,
     rescanInFlight = false,
     onRescan,
@@ -39,25 +44,25 @@
     !!lastScan && (lastScan.status === "aborted" || lastScan.status === "error"),
   );
 
-  let summary = $state<Summary | null>(null);
   let topColumns = $state<TopColumn[]>([]);
   let topTables = $state<TopTable[]>([]);
 
   const fmt = (n: number) => n.toLocaleString("en-US");
 
-  async function load() {
-    const [sumRes, colsRes, tablesRes] = await Promise.all([
-      fetch("/api/index/summary"),
-      fetch("/api/columns?limit=12"),
-      fetch("/api/tables?limit=12"),
-    ]);
-    if (sumRes.ok) summary = (await sumRes.json()) as Summary;
-    if (colsRes.ok) topColumns = ((await colsRes.json()) as { columns: TopColumn[] }).columns;
-    if (tablesRes.ok) topTables = ((await tablesRes.json()) as { tables: TopTable[] }).tables;
-  }
-
+  // Top-N lists are still loaded here — they're overview-specific (not part of
+  // the App-level summary) and small enough to refetch when the user revisits.
+  // Refire when summary changes (e.g. after a rescan) so top-tables/top-columns
+  // also refresh and don't go stale.
   $effect(() => {
-    load();
+    void summary;
+    (async () => {
+      const [colsRes, tablesRes] = await Promise.all([
+        fetch("/api/columns?limit=12"),
+        fetch("/api/tables?limit=12"),
+      ]);
+      if (colsRes.ok) topColumns = ((await colsRes.json()) as { columns: TopColumn[] }).columns;
+      if (tablesRes.ok) topTables = ((await tablesRes.json()) as { tables: TopTable[] }).tables;
+    })();
   });
 </script>
 

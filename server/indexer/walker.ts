@@ -13,19 +13,24 @@ export interface WalkedFile {
 const FAMILY_PATTERN = /APIs$/;
 const YAML_PATTERN = /\.ya?ml$/i;
 
-export async function* walkCatalog(rootDir: string): AsyncGenerator<WalkedFile> {
+export async function* walkCatalog(
+  rootDir: string,
+  signal?: AbortSignal,
+): AsyncGenerator<WalkedFile> {
   let rootEntries;
   try {
     rootEntries = await readdir(rootDir, { withFileTypes: true });
   } catch {
     return;
   }
+  signal?.throwIfAborted();
 
   const familyDirs = rootEntries
     .filter((e) => e.isDirectory() && FAMILY_PATTERN.test(e.name))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   for (const familyDir of familyDirs) {
+    signal?.throwIfAborted();
     const familyPath = join(rootDir, familyDir.name);
     let resourceEntries;
     try {
@@ -36,6 +41,7 @@ export async function* walkCatalog(rootDir: string): AsyncGenerator<WalkedFile> 
 
     for (const resourceEntry of resourceEntries) {
       if (!resourceEntry.isDirectory()) continue;
+      signal?.throwIfAborted();
       const resourceFolderPath = join(familyPath, resourceEntry.name);
       let files;
       try {

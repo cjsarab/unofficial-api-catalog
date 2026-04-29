@@ -741,6 +741,7 @@
         <CatalogOverview
           onSelectColumn={selectColumn}
           onSelectTable={selectTable}
+          summary={summary}
           lastScan={summary?.lastScan ?? null}
           rescanInFlight={rescanInFlight}
           onRescan={triggerRescan}

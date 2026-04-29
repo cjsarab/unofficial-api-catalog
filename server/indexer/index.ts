@@ -116,9 +116,11 @@ async function runScan(
   const familySet = new Set<string>();
   const scanStartedAt = Date.now();
 
-  // First pass: enumerate all files so the UI can show a total.
+  // First pass: enumerate all files so the UI can show a total. Pass the
+  // signal so a tab close mid-walk aborts within one readdir() boundary
+  // rather than silently completing the full enumeration before checking.
   const files: WalkedFile[] = [];
-  for await (const f of walkCatalog(rootDir)) files.push(f);
+  for await (const f of walkCatalog(rootDir, opts.signal)) files.push(f);
   stats.total = files.length;
 
   const selectFile = db.query<
