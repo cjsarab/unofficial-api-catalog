@@ -50,12 +50,26 @@
     return out;
   });
 
+  // Match against the parent field name (root key) and the dotted full path
+  // too, so typing a parent key like `credentials` surfaces its whole subtree
+  // instead of returning empty. (QOL-002)
   const pickerVisible = $derived.by<Array<[string, ExtractedFilter[]]>>(() => {
     const q = pickerQuery.trim().toLowerCase();
-    return grouped.map(([root, list]) => [
-      root,
-      list.filter((f) => !q || f.label.toLowerCase().includes(q) || f.leafPath.toLowerCase().includes(q)),
-    ] as [string, ExtractedFilter[]]).filter(([, list]) => list.length > 0);
+    if (!q) return grouped;
+    return grouped
+      .map(([root, list]) => {
+        const rootMatch = root.toLowerCase().includes(q);
+        const filtered = rootMatch
+          ? list
+          : list.filter(
+              (f) =>
+                f.label.toLowerCase().includes(q) ||
+                f.leafPath.toLowerCase().includes(q) ||
+                `${root}.${f.leafPath}`.toLowerCase().includes(q),
+            );
+        return [root, filtered] as [string, ExtractedFilter[]];
+      })
+      .filter(([, list]) => list.length > 0);
   });
 
   function isPicked(f: ExtractedFilter): boolean {
