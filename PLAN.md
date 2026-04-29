@@ -1,6 +1,6 @@
 # API Catalog Explorer — Design Plan
 
-> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 complete** (items 1–7): DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal, full Response Panel. Item 8 (Request History) was implemented and merged 2026-04-27 then reverted at the user's call as out of scope. Next: Phase 3 — column basket, SQL paste, set-cover matcher, lineage graph, theme switcher UI.
+> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 complete** (items 1–7): DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal, full Response Panel. Item 8 (Request History) was implemented and merged 2026-04-27 then reverted at the user's call as out of scope. **Backlog cleared 2026-04-29** — 9 items closed (B-001..B-004, QOL-001..QOL-003, UX-001, UX-002); see `BACKLOG.md` closed section. Next: Phase 3 — column basket, SQL paste, set-cover matcher, lineage graph, theme switcher UI.
 
 ## Context
 
@@ -467,7 +467,7 @@ Ordered by severity. Three HIGH items were fixed this session; the rest are defe
 - ✅ **Stale-fetch races in profile views** (HIGH, fixed) — `ApiDocsView`, `ColumnProfile`, `TableProfile` now use `AbortController` so rapid navigation cancels older in-flight requests before their responses can overwrite newer state.
 - ✅ **Catalog overview links went to raw JSON** (HIGH, fixed) — the top-columns/tables grid on the landing page bypassed the SPA. Now routes through `onSelectColumn`/`onSelectTable`.
 - ✅ **`_db` reference order in `/api/index/clear`** (MEDIUM, fixed) — detach the cached handle before closing + deleting, so concurrent requests get a fresh connection.
-- ⏭ **SSE indexer stream can't be cancelled by client** (MEDIUM) — if the user navigates away mid-scan, the scan keeps running. Parse-in-progress writes land in SQLite. Not catastrophic (indexer is idempotent) but wasteful. Fix: wire `req.signal` into `indexCatalog` via an `AbortSignal` argument and check between files.
+- ✅ **SSE indexer stream can't be cancelled by client** (MEDIUM, fixed) — `indexCatalog()` now takes an `AbortSignal`; the SSE handler passes `req.signal`; per-file `throwIfAborted()` stops scans within one parse. Status persisted to `meta.last_scan_status` so the dashboard surfaces incomplete scans (`c5d7737`, BACKLOG B-003 / QOL-003).
 - ⏭ **Client EventSource treats transient reconnects as fatal** (MEDIUM) — for a 2-minute scan a network hiccup can end the stream prematurely; add a check against `source.readyState === EventSource.CLOSED`.
 - ⏭ **Path-traversal `startsWith` check is prefix-based** (MEDIUM, low exploit risk) — `resolved.startsWith(DIST_DIR)` also matches sibling directories like `dist-evil/`. Change to `resolved === DIST_DIR || resolved.startsWith(DIST_DIR + path.sep)`.
 - ⏭ **LIKE `_`/`%` over-matches** (MEDIUM, correctness not security) — user queries `SPRIDEN_ID` match columns like `SPRIDENXID` via the `_` wildcard. Fix: escape `_` and `%` in user input with `ESCAPE '\\'` (already used in `/api/columns/prefix/:name`).
@@ -515,7 +515,7 @@ Goal: real API calls work end-to-end for users whose Ellucian tenant is accessib
 
 - ✅ Split `server.ts` into per-route modules — done. Each handler is now testable without booting `Bun.serve`.
 - Extract shared helpers from profile views into `web/lib/lineage.ts`.
-- AbortSignal wire-up for the SSE indexer stream (known issue).
+- ✅ AbortSignal wire-up for the SSE indexer stream — done (`c5d7737`).
 - Add HTTP-surface integration tests for the search / profile / API-detail endpoints.
 
 **Nice-to-have (deferrable):**
