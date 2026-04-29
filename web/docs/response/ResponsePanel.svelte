@@ -4,7 +4,7 @@
   import RawTab from "./tabs/RawTab.svelte";
   import HeadersTab from "./tabs/HeadersTab.svelte";
   import TimingTab from "./tabs/TimingTab.svelte";
-  import { formatMs } from "./format.ts";
+  import { formatMs, isJsonContentType } from "./format.ts";
   import { decodeQueryValues, pathOnly } from "../../lib/url-display.ts";
 
   type Props = ResponseView & {
@@ -23,7 +23,7 @@
   let activeTab = $state<Tab>("table");
 
   const parsedJson = $derived.by<Json | null>(() => {
-    if (!contentType?.startsWith("application/json")) return null;
+    if (!isJsonContentType(contentType)) return null;
     try { return JSON.parse(bodyText) as Json; } catch { return null; }
   });
 

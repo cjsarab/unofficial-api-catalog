@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tokenize } from "../highlight.ts";
-  import { formatBytes } from "../format.ts";
+  import { formatBytes, isJsonContentType } from "../format.ts";
   import JsonTree from "../JsonTree.svelte";
   import type { Json } from "../types.ts";
 
@@ -19,7 +19,7 @@
   let treeOn = $state(true);
   let showAll = $state(false);
 
-  const isJson = $derived(!!contentType && contentType.startsWith("application/json"));
+  const isJson = $derived(isJsonContentType(contentType));
   const isTooBig = $derived(bodyText.length > HEAD_THRESHOLD_BYTES);
 
   // Cheap binary heuristic: any C0 control (except \t \n \r) or replacement char (U+FFFD)
@@ -95,7 +95,7 @@
     {/if}
     <span class="spacer"></span>
     <span class="meta">
-      {isBinary ? "binary" : isJson ? "application/json" : (contentType ?? "plaintext")} · {formatBytes(bodyText.length)}
+      {isBinary ? "binary" : (contentType ?? (isJson ? "application/json" : "plaintext"))} · {formatBytes(bodyText.length)}
       {#if (isTooBig || isBinary) && !showAll}
         <button onclick={() => (showAll = true)}>
           Show all{isTooBig ? ` (${(bodyText.length / (1024*1024)).toFixed(2)} MB)` : ""}

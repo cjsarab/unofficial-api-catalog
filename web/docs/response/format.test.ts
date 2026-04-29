@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatBytes, formatMs } from "./format.ts";
+import { formatBytes, formatMs, isJsonContentType } from "./format.ts";
 
 describe("formatBytes", () => {
   test("bytes under 1 KB", () => {
@@ -40,5 +40,30 @@ describe("formatMs", () => {
   test("invalid → 0 ms", () => {
     expect(formatMs(NaN)).toBe("0 ms");
     expect(formatMs(-1)).toBe("0 ms");
+  });
+});
+
+describe("isJsonContentType", () => {
+  test("plain application/json", () => {
+    expect(isJsonContentType("application/json")).toBe(true);
+  });
+  test("with charset parameter", () => {
+    expect(isJsonContentType("application/json; charset=utf-8")).toBe(true);
+    expect(isJsonContentType("APPLICATION/JSON;CHARSET=UTF-8")).toBe(true);
+  });
+  test("RFC 6838 +json suffix (Ellucian Ethos)", () => {
+    expect(isJsonContentType("application/vnd.hedtech.integration.v6+json")).toBe(true);
+    expect(isJsonContentType("application/vnd.api+json; charset=utf-8")).toBe(true);
+    expect(isJsonContentType("application/ld+json")).toBe(true);
+  });
+  test("non-JSON types", () => {
+    expect(isJsonContentType("text/plain")).toBe(false);
+    expect(isJsonContentType("application/xml")).toBe(false);
+    expect(isJsonContentType("text/html")).toBe(false);
+  });
+  test("nullish / empty inputs", () => {
+    expect(isJsonContentType(null)).toBe(false);
+    expect(isJsonContentType(undefined)).toBe(false);
+    expect(isJsonContentType("")).toBe(false);
   });
 });
