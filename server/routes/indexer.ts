@@ -4,6 +4,7 @@ import { db, detachDb } from "../db.ts";
 import {
   clearIndexFiles,
   indexCatalog,
+  ScanInFlightError,
   META_LAST_SCAN_STATUS,
   META_LAST_SCAN_STARTED,
   META_LAST_SCAN_FINISHED,
@@ -22,8 +23,15 @@ export const handleIndexer: RouteHandler = async (req, url) => {
     if (!existsSync(catalogPath)) {
       return Response.json({ error: "catalog folder not found", catalogPath }, { status: 404 });
     }
-    const stats = await indexCatalog(catalogPath, { db: db(), signal: req.signal });
-    return Response.json({ catalogPath, ...stats });
+    try {
+      const stats = await indexCatalog(catalogPath, { db: db(), signal: req.signal });
+      return Response.json({ catalogPath, ...stats });
+    } catch (err) {
+      if (err instanceof ScanInFlightError) {
+        return Response.json({ error: "scan-in-flight" }, { status: 409 });
+      }
+      throw err;
+    }
   }
 
   // Streaming version of the catalog scan. Emits Server-Sent Events so the UI
@@ -56,7 +64,11 @@ export const handleIndexer: RouteHandler = async (req, url) => {
           // (already set by indexCatalog) but skip the SSE emit, the stream
           // is already gone.
           if (req.signal.aborted) return;
-          emit("error", { message: (err as Error).message });
+          if (err instanceof ScanInFlightError) {
+            emit("error", { message: "Another scan is already in progress.", code: "scan-in-flight" });
+          } else {
+            emit("error", { message: (err as Error).message });
+          }
         } finally {
           try { controller.close(); } catch { /* already closed by abort */ }
         }

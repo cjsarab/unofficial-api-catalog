@@ -15,6 +15,23 @@ export const META_LAST_SCAN_ERROR = "last_scan_error";
 
 export type LastScanStatus = "running" | "complete" | "aborted" | "error";
 
+/** Process-level mutex for indexCatalog. Two concurrent scans against the same
+ *  DB would race on per-file writes AND on the stale-cleanup pass — the second
+ *  scan's stale cleanup uses a later `scanStartedAt`, so any rows the first
+ *  scan touched but the second hasn't reached yet would be deleted. There's no
+ *  business case for parallel scans on a single-user app; reject the second
+ *  caller with a structured error. */
+let scanInFlight = false;
+export class ScanInFlightError extends Error {
+  constructor() {
+    super("Another scan is already in progress.");
+    this.name = "ScanInFlightError";
+  }
+}
+export function isScanInFlight(): boolean {
+  return scanInFlight;
+}
+
 export interface IndexProgress {
   total: number;
   processed: number;
@@ -52,6 +69,9 @@ export async function indexCatalog(
     signal?: AbortSignal;
   } = {},
 ): Promise<IndexStats> {
+  if (scanInFlight) throw new ScanInFlightError();
+  scanInFlight = true;
+
   const db = opts.db ?? openIndex();
   const start = Date.now();
   setMeta(db, META_LAST_SCAN_STATUS, "running");
@@ -71,6 +91,8 @@ export async function indexCatalog(
     setMeta(db, META_LAST_SCAN_FINISHED, String(Date.now()));
     setMeta(db, META_LAST_SCAN_ERROR, isAbort ? "" : (err as Error).message);
     throw err;
+  } finally {
+    scanInFlight = false;
   }
 }
 

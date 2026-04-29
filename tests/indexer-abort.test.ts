@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { openIndex, getMeta } from "../server/indexer/sqlite.ts";
 import {
   indexCatalog,
+  ScanInFlightError,
   META_LAST_SCAN_STATUS,
   META_LAST_SCAN_STARTED,
   META_LAST_SCAN_FINISHED,
@@ -69,6 +70,29 @@ describe("indexCatalog scan-status tracking", () => {
     // No catalog rows on a hard pre-abort.
     const apiCount = db.query<{ c: number }, []>(`SELECT count(*) as c FROM apis`).get()?.c ?? 0;
     expect(apiCount).toBe(0);
+
+    db.close();
+  });
+
+  test("a second concurrent indexCatalog call rejects with ScanInFlightError", async () => {
+    const db = openIndex(dbPath);
+    const first = indexCatalog(FIXTURE_ROOT, { db });
+
+    // Don't await first — fire the second immediately. The first sets the
+    // module-level mutex synchronously before it hits any await, so the
+    // second sees scanInFlight=true.
+    let secondError: unknown;
+    try {
+      await indexCatalog(FIXTURE_ROOT, { db });
+    } catch (err) {
+      secondError = err;
+    }
+
+    expect(secondError).toBeInstanceOf(ScanInFlightError);
+
+    // First scan still completes normally.
+    await first;
+    expect(getMeta(db, META_LAST_SCAN_STATUS)).toBe("complete");
 
     db.close();
   });
