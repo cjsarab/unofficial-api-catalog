@@ -33,8 +33,6 @@ function migrate(db: Database): void {
     .get();
   const current = row ? Number(row.value) : 0;
 
-  if (current === SCHEMA_VERSION) return;
-
   // Simple forward-only migration. On a version bump we wipe-rebuild the content
   // tables — the catalog is the source of truth and re-indexing is fast.
   if (current > 0 && current < SCHEMA_VERSION) {
@@ -50,13 +48,16 @@ function migrate(db: Database): void {
     `);
   }
 
-  if (current < 1) {
-    db.exec(SCHEMA_V1);
-  }
+  // Always re-apply — every CREATE in SCHEMA_V1 is `IF NOT EXISTS`, so this is
+  // idempotent on a fresh DB and self-healing on a half-migrated one (drops
+  // happened but recreate didn't).
+  db.exec(SCHEMA_V1);
 
-  db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`).run(
-    String(SCHEMA_VERSION),
-  );
+  if (current !== SCHEMA_VERSION) {
+    db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)`).run(
+      String(SCHEMA_VERSION),
+    );
+  }
 }
 
 const SCHEMA_V1 = /* sql */ `
