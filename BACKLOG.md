@@ -16,6 +16,7 @@ Open items, newest at top.
 
 ### Closed in the 2026-04-29 backlog wave
 
+- **B-005** — multiple object-type query params silently un-editable → `80cd48e` _fix(try): render every object-type query param via CriteriaFilter_ (discovered + fixed mid-session: persons `personFilter`, academic-catalogs `sort`/`criteria` couldn't accept input because only the first object-type query param was wired to CriteriaFilter; the rest fell through to SchemaInput's empty `type:object` branch)
 - **UX-001** — Try panel theme contrast → `d1f8a0e` _fix(theme): tokenize Try-panel + Response-panel hard-coded colours_
 - **UX-002** — home button in top bar → `20cc15c` _feat(shell): home button in top bar_
 - **QOL-002** — filter matches parent field names → `8c719a1` _fix(try): filter matches parent field names + dotted paths_
