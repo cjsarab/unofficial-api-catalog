@@ -104,6 +104,18 @@ describe("version migration", () => {
     expect(nextState.criteria.personFilter).toEqual({ personFilter: { personFilter: "abc-123" } });
   });
 
+  test("criteriaRaw override carried over when the param still exists in the new schema", () => {
+    const s1 = schema([{ name: "sort", in: "query", schema: { type: "object" } }]);
+    const s2 = schema([{ name: "sort", in: "query", schema: { type: "object" } }]);
+    const state: FormState = {
+      ...emptyState(),
+      criteria: { sort: { asc: { asc: "lastName" } } },
+      criteriaRaw: { sort: '{"asc": "lastName"}' },
+    };
+    const { nextState } = reprojectFormState(state, s1, s2);
+    expect(nextState.criteriaRaw?.sort).toBe('{"asc": "lastName"}');
+  });
+
   test("object-type query param dropped from new schema → criteria spills into orphans bucket", () => {
     const s1 = schema([
       { name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` },

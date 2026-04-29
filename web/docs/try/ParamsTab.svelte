@@ -10,16 +10,19 @@
     queryValues: Record<string, string>;
     /** Per-param criteria values: paramName → rootKey → leafName → value. */
     criteriaValues: Record<string, Record<string, Record<string, string>>>;
+    /** Per-param raw-mode literal text override. */
+    criteriaRaw?: Record<string, string>;
     onPathChange: (name: string, v: string) => void;
     onQueryChange: (name: string, v: string) => void;
     onCriteriaChange: (paramName: string, v: Record<string, Record<string, string>>) => void;
+    onCriteriaRawChange: (paramName: string, raw: string | null) => void;
     /** Fields required-but-empty as of the last Send attempt. */
     amberNames?: Set<string>;
     undocumentedCriteria?: Array<{ paramName: string; rootKey: string; leafPath: string }>;
   };
   let {
-    parameters, pathValues, queryValues, criteriaValues,
-    onPathChange, onQueryChange, onCriteriaChange,
+    parameters, pathValues, queryValues, criteriaValues, criteriaRaw,
+    onPathChange, onQueryChange, onCriteriaChange, onCriteriaRawChange,
     amberNames = new Set(), undocumentedCriteria = [],
   }: Props = $props();
 
@@ -72,6 +75,8 @@
             param={cp}
             value={criteriaValues[cp.name] ?? {}}
             onChange={(v) => onCriteriaChange(cp.name, v)}
+            rawOverride={criteriaRaw?.[cp.name]}
+            onRawOverride={(raw) => onCriteriaRawChange(cp.name, raw)}
             undocumented={undocumentedCriteria.filter((u) => u.paramName === cp.name)}
           />
         </div>

@@ -38,7 +38,7 @@
 
   function freshState(): FormState {
     return {
-      pathParams: {}, queryParams: {}, criteria: {},
+      pathParams: {}, queryParams: {}, criteria: {}, criteriaRaw: {},
       headers: [], body: { mode: "raw", text: "" }, headersOverridden: {},
     };
   }
@@ -109,10 +109,16 @@
     }
     // Criteria-style object query params: each one builds its own JSON object
     // (e.g. `?criteria={"names":[{"firstName":"X"}]}&personFilter={"personFilter":"Y"}`).
-    // The wire shape per rootKey comes from the description-scrape — array-of-
-    // objects (`criteria`), bare object, or scalar (`personFilter`). The form
-    // state is shape-agnostic, so without this lookup we'd always wrap in [] and
-    // produce `{"personFilter":[{"personFilter":"abc"}]}` which Ethos rejects.
+    //
+    // Two sources of wire shape, in order of precedence:
+    //   1. state.criteriaRaw[paramName] — the literal text the user typed in
+    //      Raw mode. Lossless: whatever they typed is what we send.
+    //   2. Description-scraped shape per rootKey (array-of-objects / object /
+    //      scalar). Used when no raw override exists.
+    //
+    // For unknown shapes (no description AND no raw override), we default to a
+    // plain object — preserves user intent better than blindly wrapping in
+    // `[…]`, which was the old default and broke scalar-shape APIs.
     const criteriaParams = currentSchema?.parameters.filter(isCriteriaParam) ?? [];
     const shapeByParam = new Map<string, Map<string, "array-of-objects" | "object" | "scalar">>();
     for (const cp of criteriaParams) {
@@ -124,7 +130,30 @@
       shapeByParam.set(cp.name, inferRootShapes(filters));
     }
 
-    for (const [paramName, perParam] of Object.entries(state.criteria)) {
+    const allParamNames = new Set([
+      ...Object.keys(state.criteria),
+      ...Object.keys(state.criteriaRaw ?? {}),
+    ]);
+
+    for (const paramName of allParamNames) {
+      const rawOverride = state.criteriaRaw?.[paramName];
+      if (rawOverride && rawOverride.trim()) {
+        // User typed literal JSON in Raw mode — send verbatim. We re-parse
+        // and re-stringify to normalise whitespace, but the structure is
+        // exactly what they typed (no shape rewriting).
+        try {
+          const obj = JSON.parse(rawOverride) as Record<string, unknown>;
+          if (Object.keys(obj).length > 0) {
+            qs.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(JSON.stringify(obj))}`);
+          }
+        } catch {
+          // Invalid JSON shouldn't happen (CriteriaFilter only sets the
+          // override on successful parse) — but defensively skip.
+        }
+        continue;
+      }
+
+      const perParam = state.criteria[paramName] ?? {};
       const obj: Record<string, unknown> = {};
       const shapes = shapeByParam.get(paramName) ?? new Map();
       for (const [rk, leaves] of Object.entries(perParam)) {
@@ -134,12 +163,14 @@
         if (shape === "scalar" && filledLeaves.length === 1 && filledLeaves[0]![0] === rk) {
           // {personFilter: "abc"} — single leaf whose name matches the rootKey
           obj[rk] = filledLeaves[0]![1];
-        } else if (shape === "object") {
-          // {alternativeCredentials: {type: "x", value: "y"}}
-          obj[rk] = Object.fromEntries(filledLeaves);
-        } else {
-          // Default + "array-of-objects": {names: [{firstName: "James"}]}
+        } else if (shape === "array-of-objects") {
+          // {names: [{firstName: "James"}]}
           obj[rk] = [Object.fromEntries(filledLeaves)];
+        } else {
+          // shape === "object" or unknown → {rk: {a, b}}. Previously the
+          // unknown-shape default was array-wrap, which silently mangled
+          // any API whose criteria param didn't follow the array pattern.
+          obj[rk] = Object.fromEntries(filledLeaves);
         }
       }
       if (Object.keys(obj).length === 0) continue;
@@ -389,6 +420,7 @@
           pathValues={state.pathParams}
           queryValues={state.queryParams}
           criteriaValues={state.criteria}
+          criteriaRaw={state.criteriaRaw}
           onPathChange={(n, v) => persist({ ...state, pathParams: { ...state.pathParams, [n]: v } })}
           onQueryChange={(n, v) => persist({ ...state, queryParams: { ...state.queryParams, [n]: v } })}
           onCriteriaChange={(name, c) => {
@@ -398,6 +430,11 @@
             const isEmpty = Object.values(c).every((leaves) => Object.keys(leaves).length === 0);
             if (isEmpty) delete next[name]; else next[name] = c;
             persist({ ...state, criteria: next });
+          }}
+          onCriteriaRawChange={(name, raw) => {
+            const next = { ...(state.criteriaRaw ?? {}) };
+            if (raw === null) delete next[name]; else next[name] = raw;
+            persist({ ...state, criteriaRaw: next });
           }}
           amberNames={amberNames}
           undocumentedCriteria={warnings.filter((w): w is Extract<MigrationWarning, { kind: "criteria-undocumented" }> => w.kind === "criteria-undocumented")}

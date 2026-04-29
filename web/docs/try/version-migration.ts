@@ -21,6 +21,13 @@ export interface FormState {
    *  the persons endpoint, or `criteria` + `sort` on academic-catalogs) each
    *  get their own entry. */
   criteria: Record<string, Record<string, Record<string, string>>>;
+  /** When the user is in Raw mode and types a literal JSON object whose wire
+   *  shape can't be inferred from the description (e.g. an undocumented `sort`
+   *  param), the raw text becomes the source of truth. URL builder uses this
+   *  verbatim instead of rebuilding from chips. Cleared whenever the user
+   *  edits chips in Form mode (chips become canonical) or successfully
+   *  switches Raw → Form. */
+  criteriaRaw?: Record<string, string>;
   headers: Array<{ name: string; value: string }>;
   body: { mode: "form" | "raw"; text: string };
   /** Names the user explicitly overrode (don't auto-recompute on version change). */
@@ -108,6 +115,11 @@ export function reprojectFormState(
     for (const [rootKey, leaves] of Object.entries(perParam)) {
       nextState.criteria[paramName][rootKey] = { ...leaves };
     }
+    // Carry over any raw-mode override for this param. The new schema may
+    // accept a different literal JSON, but the user's intent (raw bytes they
+    // typed) outweighs an automatic re-shape — they can edit if needed.
+    const oldRaw = oldState.criteriaRaw?.[paramName];
+    if (oldRaw !== undefined) (nextState.criteriaRaw ??= {})[paramName] = oldRaw;
     const extracted = scrapeCriteriaFilters(
       newParam.description ?? "",
       newParam.name,

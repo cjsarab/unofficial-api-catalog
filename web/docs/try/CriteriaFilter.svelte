@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { scrapeCriteriaFilters, type ExtractedFilter } from "../../lib/criteria-scraper.ts";
+  import { scrapeCriteriaFilters, inferRootShapes, type ExtractedFilter, type RootShape } from "../../lib/criteria-scraper.ts";
   import type { OpenAPIParameter } from "../../lib/openapi.ts";
 
   type Props = {
@@ -7,10 +7,14 @@
     /** Current flattened criteria values keyed by rootKey → leafName. */
     value: Record<string, Record<string, string>>;
     onChange: (next: Record<string, Record<string, string>>) => void;
+    /** Raw-mode literal text override for this param (set when the user typed
+     *  custom JSON whose shape can't be reconstructed from chips alone). */
+    rawOverride?: string;
+    onRawOverride: (raw: string | null) => void;
     /** Warnings from version migration: leafPaths the new version no longer documents. */
     undocumented?: Array<{ rootKey: string; leafPath: string }>;
   };
-  let { param, value, onChange, undocumented = [] }: Props = $props();
+  let { param, value, onChange, rawOverride, onRawOverride, undocumented = [] }: Props = $props();
 
   let mode = $state<"form" | "raw">("form");
   let pickerOpen = $state(false);
@@ -76,12 +80,18 @@
     return f.leafPath in (value[f.rootKey] ?? {});
   }
 
+  // Shape per rootKey from the description-scrape — used to render computedJson
+  // in the wire shape the API expects (scalar / object / array-of-objects),
+  // and as a fallback when the user's typed JSON looks ambiguous.
+  const shapes = $derived(inferRootShapes(filters));
+
   function pick(f: ExtractedFilter) {
     if (isPicked(f)) return;
     onChange({
       ...value,
       [f.rootKey]: { ...(value[f.rootKey] ?? {}), [f.leafPath]: "" },
     });
+    onRawOverride(null); // form-mode edit — chips become canonical
     pickerOpen = false;
     pickerQuery = "";
   }
@@ -93,6 +103,7 @@
     if (Object.keys(inner).length === 0) delete next[rootKey];
     else next[rootKey] = inner;
     onChange(next);
+    onRawOverride(null);
   }
 
   function setChipValue(rootKey: string, leafPath: string, v: string) {
@@ -100,13 +111,33 @@
       ...value,
       [rootKey]: { ...(value[rootKey] ?? {}), [leafPath]: v },
     });
+    onRawOverride(null);
+  }
+
+  /** Wrap leaves into the wire shape declared for this rootKey. Default for
+   *  unknown shapes is an unwrapped object (preserves user intent better than
+   *  blindly wrapping in `[…]`). */
+  function shapeLeaves(rk: string, leaves: Record<string, string>): unknown {
+    const filled = Object.entries(leaves).filter(([, v]) => v !== "");
+    if (filled.length === 0) return undefined;
+    const shape: RootShape | undefined = shapes.get(rk);
+    if (shape === "scalar" && filled.length === 1 && filled[0]![0] === rk) {
+      return filled[0]![1];
+    }
+    if (shape === "array-of-objects") {
+      return [Object.fromEntries(filled)];
+    }
+    // shape === "object" (documented), or unknown → preserve user intent as
+    // a plain object. The previous default was `[Object.fromEntries(...)]`
+    // which was wrong for any non-array-of-objects-shaped param.
+    return Object.fromEntries(filled);
   }
 
   const computedJson = $derived.by(() => {
     const obj: Record<string, unknown> = {};
     for (const [rk, leaves] of Object.entries(value)) {
-      // Array-of-objects grouping: all same-root leaves in one object
-      obj[rk] = [Object.fromEntries(Object.entries(leaves).map(([k, v]) => [k, v]))];
+      const shaped = shapeLeaves(rk, leaves);
+      if (shaped !== undefined) obj[rk] = shaped;
     }
     return JSON.stringify(obj, null, 2);
   });
@@ -134,25 +165,33 @@
 
   // Commit raw-mode edits live so the URL preview + Send action see them
   // immediately. Parse failures (mid-keystroke) are silent — onChange just
-  // doesn't fire until the JSON is valid again. The last valid state is what
-  // gets sent if the user switches tabs without finishing an edit.
+  // doesn't fire until the JSON is valid again. The raw text becomes the
+  // wire-canonical form for this param (rawOverride), so a Form→Raw round-
+  // trip is lossless: the URL builder uses this verbatim instead of
+  // reconstructing from chips.
   let rawInvalid = $state(false);
   function onRawInput(ev: Event) {
     rawText = (ev.target as HTMLTextAreaElement).value;
-    if (!rawText.trim()) { onChange({}); rawInvalid = false; return; }
+    if (!rawText.trim()) { onChange({}); onRawOverride(null); rawInvalid = false; return; }
     const parsed = parseRaw(rawText);
     if (parsed === null) { rawInvalid = true; return; }
     rawInvalid = false;
     onChange(parsed);
+    onRawOverride(rawText);
   }
 
   function switchMode(next: "form" | "raw") {
     if (mode === "form" && next === "raw") {
-      rawText = computedJson;
+      // Restore the user's last raw text if they typed one previously;
+      // otherwise serialise chips through the documented shape.
+      rawText = rawOverride ?? computedJson;
       rawInvalid = false;
     } else if (mode === "raw" && next === "form") {
       const parsed = parseRaw(rawText);
-      if (parsed !== null) onChange(parsed);
+      if (parsed !== null) {
+        onChange(parsed);
+        onRawOverride(null); // chips are now the source of truth
+      }
       // else: leave state as it was; user stays informed via the invalid flag
     }
     mode = next;
