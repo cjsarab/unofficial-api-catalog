@@ -88,12 +88,7 @@
     {:else if activeTab === "raw"}
       <RawTab bodyText={bodyText} contentType={contentType} />
     {:else if activeTab === "headers"}
-      <HeadersTab
-        responseHeaders={headers}
-        requestHeaders={requestHeaders}
-        requestMethod={requestMethod}
-        requestUrl={requestUrl}
-      />
+      <HeadersTab responseHeaders={headers} requestHeaders={requestHeaders} />
     {:else}
       <TimingTab timings={timings} bytes={bytes} />
     {/if}

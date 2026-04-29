@@ -1,23 +1,9 @@
 <script lang="ts">
-  import { decodeQueryValues } from "../../../lib/url-display.ts";
-
   type Props = {
     responseHeaders: Record<string, string>;
     requestHeaders: Record<string, string>;
-    requestMethod?: string;
-    requestUrl?: string;
   };
-  let { responseHeaders, requestHeaders, requestMethod, requestUrl }: Props = $props();
-
-  let urlEncoded = $state(false);
-  const displayedUrl = $derived(
-    !requestUrl ? "" : urlEncoded ? requestUrl : decodeQueryValues(requestUrl),
-  );
-
-  function copyUrl() {
-    if (!displayedUrl) return;
-    navigator.clipboard?.writeText(displayedUrl).catch(() => { /* best effort */ });
-  }
+  let { responseHeaders, requestHeaders }: Props = $props();
 
   const REDACT_KEYS = new Set(["authorization", "cookie", "set-cookie"]);
 
@@ -82,26 +68,6 @@
       Copy {activeSub === "response" ? "response" : "request"} headers
     </button>
   </nav>
-
-  {#if activeSub === "request" && requestUrl}
-    <div class="url-block">
-      <div class="url-row">
-        <span class="method method-{(requestMethod ?? "").toLowerCase()}">{requestMethod}</span>
-        <code class="url-value">{displayedUrl}</code>
-      </div>
-      <div class="url-actions">
-        <button
-          class="toggle"
-          onclick={() => (urlEncoded = !urlEncoded)}
-          aria-pressed={urlEncoded}
-          title="Toggle URL-encoded vs decoded query values"
-        >
-          {urlEncoded ? "Show decoded" : "Show raw (encoded)"}
-        </button>
-        <button class="toggle" onclick={copyUrl} aria-label="Copy URL">Copy URL</button>
-      </div>
-    </div>
-  {/if}
 
   <dl>
     {#each sortedEntries(activeHeaders) as [k, v]}
@@ -214,54 +180,4 @@
     color: var(--fg-dim);
     font-size: 12px;
   }
-
-  .url-block {
-    padding: var(--space-3);
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .url-row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    font-family: var(--font-mono);
-    font-size: 12px;
-  }
-  .method {
-    padding: 1px 6px;
-    font-size: 11px;
-    font-weight: bold;
-    flex-shrink: 0;
-  }
-  .method-get    { background: var(--method-get-bg); color: var(--method-get-fg); }
-  .method-post   { background: var(--method-post-bg); color: var(--method-post-fg); }
-  .method-put,
-  .method-patch  { background: var(--method-put-bg); color: var(--method-put-fg); }
-  .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
-  .url-value {
-    color: var(--fg);
-    overflow-wrap: anywhere;
-    word-break: break-all;
-    flex: 1;
-  }
-  .url-actions {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
-  }
-  .url-actions .toggle {
-    font: inherit;
-    font-family: var(--font-mono);
-    background: transparent;
-    color: var(--fg-dim);
-    border: 1px solid var(--border);
-    padding: 2px 8px;
-    cursor: pointer;
-    font-size: 11px;
-  }
-  .url-actions .toggle:hover { color: var(--accent); border-color: var(--accent); }
-  .url-actions .toggle[aria-pressed="true"] { color: var(--fg); border-color: var(--border-strong); background: var(--bg-raised); }
 </style>
