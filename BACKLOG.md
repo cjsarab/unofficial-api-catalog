@@ -16,6 +16,7 @@ Open items, newest at top.
 
 ### Closed in the 2026-04-29 backlog wave
 
+- **B-007** — Response panel didn't recognise vendor `+json` content types as JSON → `fa0f82e` _fix(response): treat any +json content type as JSON_ (Ethos returns `application/vnd.hedtech.integration.v6+json`; `startsWith("application/json")` rejected it, so Table tab + Tree/Pretty toggles were disabled. Added `isJsonContentType` helper accepting RFC 6838 +json suffix)
 - **B-006** — criteria URL builder always wrapped values in `[…]` regardless of wire shape → `84f7978` _fix(try): wire-shape per criteria rootKey_ (surfaced after B-005 made personFilter editable: scalar-shape params like `?personFilter={"personFilter":"abc"}` were emitted as `{"personFilter":[{"personFilter":"abc"}]}` and rejected 500. Wire shape now derived per-rootKey from the description-scrape via `inferRootShapes`)
 - **B-005** — multiple object-type query params silently un-editable → `80cd48e` _fix(try): render every object-type query param via CriteriaFilter_ (discovered + fixed mid-session: persons `personFilter`, academic-catalogs `sort`/`criteria` couldn't accept input because only the first object-type query param was wired to CriteriaFilter; the rest fell through to SchemaInput's empty `type:object` branch)
 - **UX-001** — Try panel theme contrast → `d1f8a0e` _fix(theme): tokenize Try-panel + Response-panel hard-coded colours_
