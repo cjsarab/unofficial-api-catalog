@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EndpointSchema, OpenAPIParameter } from "../lib/openapi.ts";
   import type { ResponseView } from "./response/types.ts";
+  import { decodeQueryValues } from "../lib/url-display.ts";
   import { reprojectFormState, type FormState, type MigrationWarning } from "./try/version-migration.ts";
   import ParamsTab from "./try/ParamsTab.svelte";
   import HeadersTab from "./try/HeadersTab.svelte";
@@ -238,6 +239,8 @@
       const view: ResponseView = {
         status: res.status,
         statusText: res.statusText,
+        requestMethod: focused.method,
+        requestUrl: computedUrl,
         headers: headersObj,
         requestHeaders: requestHeadersObj,
         bodyText,
@@ -261,6 +264,8 @@
       onSend({
         status: 0,
         statusText: "Network error",
+        requestMethod: focused.method,
+        requestUrl: computedUrl,
         headers: {},
         requestHeaders: {},
         bodyText: String((e as Error).message),
@@ -318,7 +323,7 @@
     <!-- URL bar -->
     <div class="url-bar">
       <span class="method method-{focused.method.toLowerCase()}">{focused.method}</span>
-      <code class="url">{computedUrl}</code>
+      <code class="url" title={computedUrl}>{decodeQueryValues(computedUrl)}</code>
       <button class="send" onclick={doSend} disabled={sending || !activeEnv}
               title={!activeEnv ? "Select an environment in the top bar to send requests." : ""}>
         {sending ? "Sending…" : "[F5] Send"}

@@ -25,6 +25,11 @@ export interface ProxyError {
 export interface ResponseView {
   status: number;            // 0 indicates a client-side network error
   statusText: string;
+  /** HTTP method we sent (GET / POST / …). */
+  requestMethod: string;
+  /** The URL the user actually sent — wire form (percent-encoded). The Response
+   *  panel decodes query values for display via `web/lib/url-display.ts`. */
+  requestUrl: string;
   headers: Record<string, string>;   // response headers, lower-cased keys
   requestHeaders: Record<string, string>;   // headers we sent (for Headers tab's lower section)
   bodyText: string;          // raw body as text; empty string on 204 etc.
