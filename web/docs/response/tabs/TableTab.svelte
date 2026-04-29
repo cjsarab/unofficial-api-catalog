@@ -38,12 +38,17 @@
   });
 
   $effect(() => {
-    // When the user navigates to a different table, reset hiddenCols + navFilter.
-    // columnsMenuOpen is intentionally NOT reset here — it closes via its
-    // own outside-click / Escape handlers.
+    // When the user navigates to a different table, reset hiddenCols.
+    // columnsMenuOpen is intentionally NOT reset — it closes via its own
+    // outside-click / Escape handlers.
+    //
+    // navFilter is NOT reset here either: the count-link click handler sets
+    // `selectedPath = p; navFilter = pid` together, and an unconditional
+    // reset on selectedPath change would clobber the just-set navFilter
+    // before it could take effect. The rail / breadcrumb handlers already
+    // set `navFilter = null` explicitly when they want it cleared.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _ = selectedPath;
-    navFilter = null;
     hiddenCols = new Set();
   });
 
