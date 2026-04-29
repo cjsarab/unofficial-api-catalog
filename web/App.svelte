@@ -559,6 +559,11 @@
       e.preventDefault();
       paletteOpen = !paletteOpen;
     }
+    // Ctrl+Shift+H — return to catalog overview from any deep view.
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "h" || e.key === "H")) {
+      e.preventDefault();
+      goOverview();
+    }
     if (e.key === "Escape" && settingsOpen) {
       e.preventDefault();
       closeSettings();
@@ -710,6 +715,7 @@
           if (res.ok) activeEnvId = id;
         }}
         onopensettings={() => openSettings()}
+        onhome={goOverview}
         openCommandPalette={openCommandPalette}
       />
     {/snippet}
