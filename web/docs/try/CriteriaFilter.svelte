@@ -111,22 +111,49 @@
     return JSON.stringify(obj, null, 2);
   });
 
+  function parseRaw(text: string): Record<string, Record<string, string>> | null {
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const nextValue: Record<string, Record<string, string>> = {};
+      for (const [rk, v] of Object.entries(parsed)) {
+        if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
+          nextValue[rk] = Object.fromEntries(Object.entries(v[0] as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
+        } else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+          nextValue[rk] = { [rk]: String(v) };
+        } else if (v && typeof v === "object" && !Array.isArray(v)) {
+          // Scalar object shape (e.g. personFilter: { id: "abc" }): collapse
+          // to {rk: {leaf: stringified}} so the form view can show it too.
+          nextValue[rk] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
+        }
+      }
+      return nextValue;
+    } catch {
+      return null;
+    }
+  }
+
+  // Commit raw-mode edits live so the URL preview + Send action see them
+  // immediately. Parse failures (mid-keystroke) are silent — onChange just
+  // doesn't fire until the JSON is valid again. The last valid state is what
+  // gets sent if the user switches tabs without finishing an edit.
+  let rawInvalid = $state(false);
+  function onRawInput(ev: Event) {
+    rawText = (ev.target as HTMLTextAreaElement).value;
+    if (!rawText.trim()) { onChange({}); rawInvalid = false; return; }
+    const parsed = parseRaw(rawText);
+    if (parsed === null) { rawInvalid = true; return; }
+    rawInvalid = false;
+    onChange(parsed);
+  }
+
   function switchMode(next: "form" | "raw") {
     if (mode === "form" && next === "raw") {
       rawText = computedJson;
+      rawInvalid = false;
     } else if (mode === "raw" && next === "form") {
-      try {
-        const parsed = JSON.parse(rawText) as Record<string, unknown>;
-        const nextValue: Record<string, Record<string, string>> = {};
-        for (const [rk, v] of Object.entries(parsed)) {
-          if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
-            nextValue[rk] = Object.fromEntries(Object.entries(v[0] as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
-          } else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-            nextValue[rk] = { [rk]: String(v) };
-          }
-        }
-        onChange(nextValue);
-      } catch { /* ignore; user stays in raw */ }
+      const parsed = parseRaw(rawText);
+      if (parsed !== null) onChange(parsed);
+      // else: leave state as it was; user stays informed via the invalid flag
     }
     mode = next;
   }
@@ -185,7 +212,10 @@
       </div>
     {/if}
   {:else}
-    <textarea class="cf-raw" bind:value={rawText} rows={6}></textarea>
+    <textarea class="cf-raw" class:invalid={rawInvalid} value={rawText} oninput={onRawInput} rows={6} placeholder={`{ "names": [{ "firstName": "James" }] }`}></textarea>
+    {#if rawInvalid}
+      <div class="cf-empty">JSON is invalid — last valid state is what will be sent.</div>
+    {/if}
   {/if}
 </div>
 
@@ -241,5 +271,6 @@
     border: 1px solid var(--border, #1e2a1e); padding: 6px;
     font-family: inherit; font-size: 11px; width: 100%; resize: vertical;
   }
+  .cf-raw.invalid { border-color: var(--danger-border); }
   .cf-empty { color: var(--fg-dim, #6ba544); font-style: italic; font-size: 11px; }
 </style>

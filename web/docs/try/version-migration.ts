@@ -1,11 +1,26 @@
 import type { EndpointSchema, OpenAPIParameter } from "../../lib/openapi.ts";
 import { scrapeCriteriaFilters } from "../../lib/criteria-scraper.ts";
 
+/** Shared selector for ParamsTab + the URL builder + version migration: any
+ *  object-type query param is rendered through CriteriaFilter, which has a
+ *  Form mode (when its description scrapes into ExtractedFilters — `criteria`
+ *  on persons / `personFilter` etc.) and a Raw JSON fallback (when the
+ *  description is empty or unscrapable — `criteria` / `sort` on
+ *  academic-catalogs). SchemaInput's `type:object` branch only handles
+ *  schemas with explicit `properties`; bare-object query params have none
+ *  and would render an empty container. */
+export function isCriteriaParam(p: OpenAPIParameter): boolean {
+  return p.in === "query" && p.schema?.type === "object";
+}
+
 export interface FormState {
   pathParams: Record<string, string>;
   queryParams: Record<string, string>;
-  /** Flattened criteria values keyed by rootKey → leafName. */
-  criteria: Record<string, Record<string, string>>;
+  /** Per-param criteria values: paramName → rootKey → leafName → value.
+   *  Multiple object-type query params (e.g. `criteria` + `personFilter` on
+   *  the persons endpoint, or `criteria` + `sort` on academic-catalogs) each
+   *  get their own entry. */
+  criteria: Record<string, Record<string, Record<string, string>>>;
   headers: Array<{ name: string; value: string }>;
   body: { mode: "form" | "raw"; text: string };
   /** Names the user explicitly overrode (don't auto-recompute on version change). */
@@ -14,7 +29,7 @@ export interface FormState {
   orphans?: {
     pathParams?: Record<string, string>;
     queryParams?: Record<string, string>;
-    criteria?: Record<string, Record<string, string>>;
+    criteria?: Record<string, Record<string, Record<string, string>>>;
   };
 }
 
@@ -22,7 +37,7 @@ export type MigrationWarning =
   | { kind: "orphan-path-param"; names: string[] }
   | { kind: "orphan-query-param"; names: string[] }
   | { kind: "coercion-failed"; name: string; from: string; to: string }
-  | { kind: "criteria-undocumented"; rootKey: string; leafPath: string };
+  | { kind: "criteria-undocumented"; paramName: string; rootKey: string; leafPath: string };
 
 export function reprojectFormState(
   oldState: FormState,
@@ -61,7 +76,7 @@ export function reprojectFormState(
   // Query params
   const orphanQueryNames: string[] = [];
   const newCriteriaNames = new Set(
-    newSchema.parameters.filter((p) => p.in === "query" && p.schema?.type === "object").map((p) => p.name),
+    newSchema.parameters.filter(isCriteriaParam).map((p) => p.name),
   );
   for (const [name, value] of Object.entries(oldState.queryParams)) {
     if (newCriteriaNames.has(name)) continue; // criteria-shaped, handled below
@@ -77,33 +92,38 @@ export function reprojectFormState(
   }
   if (orphanQueryNames.length) warnings.push({ kind: "orphan-query-param", names: orphanQueryNames });
 
-  // Criteria chips
-  for (const [rootKey, leaves] of Object.entries(oldState.criteria)) {
-    nextState.criteria[rootKey] = { ...leaves };
-    // Check whether the new version's criteria description still documents these leaves.
-    const criteriaParam = newSchema.parameters.find((p) => p.schema?.type === "object" && p.name === findCriteriaParamName(newSchema));
-    if (!criteriaParam) continue;
+  // Criteria chips — preserved per-param.  If the new version dropped the
+  // param entirely, the old chips spill into orphans.criteria so nothing is
+  // silently lost on version change.
+  const newCriteriaByName = new Map<string, OpenAPIParameter>();
+  for (const p of newSchema.parameters) if (isCriteriaParam(p)) newCriteriaByName.set(p.name, p);
+
+  for (const [paramName, perParam] of Object.entries(oldState.criteria)) {
+    const newParam = newCriteriaByName.get(paramName);
+    if (!newParam) {
+      (nextState.orphans!.criteria ??= {})[paramName] = perParam;
+      continue;
+    }
+    nextState.criteria[paramName] = {};
+    for (const [rootKey, leaves] of Object.entries(perParam)) {
+      nextState.criteria[paramName][rootKey] = { ...leaves };
+    }
     const extracted = scrapeCriteriaFilters(
-      criteriaParam.description ?? "",
-      criteriaParam.name,
-      typeof criteriaParam.example === "string" ? criteriaParam.example : undefined,
+      newParam.description ?? "",
+      newParam.name,
+      typeof newParam.example === "string" ? newParam.example : undefined,
     );
     const documentedKeys = new Set(extracted.map((f) => `${f.rootKey}.${f.leafPath}`));
-    for (const leafPath of Object.keys(leaves)) {
-      if (!documentedKeys.has(`${rootKey}.${leafPath}`)) {
-        warnings.push({ kind: "criteria-undocumented", rootKey, leafPath });
+    for (const [rootKey, leaves] of Object.entries(perParam)) {
+      for (const leafPath of Object.keys(leaves)) {
+        if (!documentedKeys.has(`${rootKey}.${leafPath}`)) {
+          warnings.push({ kind: "criteria-undocumented", paramName, rootKey, leafPath });
+        }
       }
     }
   }
 
   return { nextState, warnings };
-}
-
-function findCriteriaParamName(schema: EndpointSchema): string | undefined {
-  // First object-typed query param with a non-empty description is the one
-  // the scraper will treat as criteria. Matches how TryPanel chooses.
-  const p = schema.parameters.find((q) => q.in === "query" && q.schema?.type === "object" && q.description);
-  return p?.name;
 }
 
 function tryCoerce(

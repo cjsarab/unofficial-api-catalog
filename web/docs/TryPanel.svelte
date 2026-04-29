@@ -105,15 +105,15 @@
       if (val === "" || val === undefined) continue;
       qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(val)}`);
     }
-    // Criteria as a single object.
-    if (Object.keys(state.criteria).length > 0) {
+    // Criteria-style object query params: each one builds its own JSON object
+    // (e.g. `?criteria={names:[{firstName:X}]}&personFilter={personFilter:{id:Y}}`).
+    for (const [paramName, perParam] of Object.entries(state.criteria)) {
       const obj: Record<string, unknown> = {};
-      for (const [rk, leaves] of Object.entries(state.criteria)) {
+      for (const [rk, leaves] of Object.entries(perParam)) {
         obj[rk] = [Object.fromEntries(Object.entries(leaves).filter(([, v]) => v !== ""))];
       }
-      const criteriaParam = currentSchema?.parameters.find((p) => p.schema?.type === "object" && p.in === "query");
-      const name = criteriaParam?.name ?? "criteria";
-      qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(JSON.stringify(obj))}`);
+      if (Object.keys(obj).length === 0) continue;
+      qs.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(JSON.stringify(obj))}`);
     }
     return url + (qs.length ? "?" + qs.join("&") : "");
   });
@@ -121,7 +121,13 @@
   const counts = $derived.by(() => {
     const params = Object.values(state.pathParams).filter((v) => v !== "").length
                  + Object.values(state.queryParams).filter((v) => v !== "").length
-                 + Object.values(state.criteria).reduce((n, l) => n + Object.values(l).filter((v) => v !== "").length, 0);
+                 + Object.values(state.criteria).reduce(
+                     (n, perParam) => n + Object.values(perParam).reduce(
+                       (m, leaves) => m + Object.values(leaves).filter((v) => v !== "").length,
+                       0,
+                     ),
+                     0,
+                   );
     const headers = state.headers.filter((h) => h.name && h.value).length + (state.headersOverridden["Accept"] ? 0 : 1); // +1 for the auto Accept row
     return { params, headers };
   });
@@ -330,7 +336,7 @@
           {:else if w.kind === "coercion-failed"}
             Previous value for <code>{w.name}</code> didn't fit the new schema.
           {:else if w.kind === "criteria-undocumented"}
-            <code>{w.rootKey}.{w.leafPath}</code> is no longer documented in v{version}.
+            <code>{w.paramName}: {w.rootKey}.{w.leafPath}</code> is no longer documented in v{version}.
           {/if}
         </div>
       {/each}
@@ -351,7 +357,14 @@
           criteriaValues={state.criteria}
           onPathChange={(n, v) => persist({ ...state, pathParams: { ...state.pathParams, [n]: v } })}
           onQueryChange={(n, v) => persist({ ...state, queryParams: { ...state.queryParams, [n]: v } })}
-          onCriteriaChange={(c) => persist({ ...state, criteria: c })}
+          onCriteriaChange={(name, c) => {
+            const next = { ...state.criteria };
+            // Drop the param entry entirely if it's empty, so the URL builder
+            // doesn't emit "?paramName=%7B%7D" for an untouched filter.
+            const isEmpty = Object.values(c).every((leaves) => Object.keys(leaves).length === 0);
+            if (isEmpty) delete next[name]; else next[name] = c;
+            persist({ ...state, criteria: next });
+          }}
           amberNames={amberNames}
           undocumentedCriteria={warnings.filter((w): w is Extract<MigrationWarning, { kind: "criteria-undocumented" }> => w.kind === "criteria-undocumented")}
         />
