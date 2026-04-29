@@ -395,17 +395,17 @@
 <style>
   .tp { display: flex; flex-direction: column; height: 100%; font-family: ui-monospace, monospace; font-size: 12px; color: var(--fg, #a9ff68); }
   .empty, .err { padding: 12px; color: var(--fg-dim, #6ba544); font-style: italic; }
-  .err { color: #ff8a8a; }
+  .err { color: var(--danger); }
   .url-bar {
     display: flex; gap: 6px; align-items: center;
     padding: 6px 8px; background: var(--bg-panel, #152815);
     border-bottom: 1px solid var(--border, #2a4a2a);
   }
   .method { padding: 2px 6px; font-weight: bold; font-size: 11px; flex: 0 0 auto; }
-  .method-get { background: #1e4a1e; color: #9fff9f; }
-  .method-post { background: #4a1e1e; color: #ffb0b0; }
-  .method-put, .method-patch { background: #4a3a1e; color: #ffcc88; }
-  .method-delete { background: #4a1e1e; color: #ff8888; }
+  .method-get { background: var(--method-get-bg); color: var(--method-get-fg); }
+  .method-post { background: var(--method-post-bg); color: var(--method-post-fg); }
+  .method-put, .method-patch { background: var(--method-put-bg); color: var(--method-put-fg); }
+  .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
   .url { flex: 1 1 0; overflow-wrap: anywhere; color: var(--fg-bright, #cfff9a); }
   .send {
     background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
@@ -414,8 +414,8 @@
   }
   .send:disabled { opacity: 0.5; cursor: not-allowed; }
   .banner { padding: 4px 10px; font-size: 11px; }
-  .banner.err { background: #2a1818; color: #ffb0b0; border-left: 3px solid #bf5050; }
-  .banner.warn { background: #2a2415; color: #d4a548; border-left: 3px solid #a67c20; }
+  .banner.err { background: var(--danger-bg); color: var(--danger); border-left: 3px solid var(--danger-border); }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); border-left: 3px solid var(--warn-border); }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border, #2a4a2a); padding: 0 4px; }
   .tabs button {
     background: transparent; color: var(--fg-dim, #6ba544);

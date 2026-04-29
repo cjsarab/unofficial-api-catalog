@@ -102,13 +102,13 @@
   .status { font-weight: bold; }
   .status-ok    { color: var(--accent); }
   .status-redir { color: var(--fg-dim); }
-  .status-warn  { color: color-mix(in srgb, var(--accent) 60%, #d4a548 40%); }
-  .status-err   { color: #ff8a8a; }
+  .status-warn  { color: var(--warn); }
+  .status-err   { color: var(--danger); }
   .duration, .sending { color: var(--fg-dim); }
   .banner {
-    background: #2a1818;
-    color: #ffb0b0;
-    border: 1px solid #bf5050;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
     padding: 1px 8px;
     font-size: 11px;
   }

@@ -52,16 +52,16 @@
   header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   h3 { margin: 0; color: var(--fg-bright, #cfff9a); font-size: 14px; }
   .env { color: var(--fg-dim, #6ba544); display: flex; align-items: center; gap: 6px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #d43c3c; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
   .url-line { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
   .method { padding: 2px 6px; font-weight: bold; font-size: 11px; }
-  .method-post { background: #4a1e1e; color: #ffb0b0; }
-  .method-put { background: #4a3a1e; color: #ffcc88; }
-  .method-patch { background: #4a3a1e; color: #ffcc88; }
-  .method-delete { background: #4a1e1e; color: #ff8888; }
+  .method-post { background: var(--method-post-bg); color: var(--method-post-fg); }
+  .method-put { background: var(--method-put-bg); color: var(--method-put-fg); }
+  .method-patch { background: var(--method-put-bg); color: var(--method-put-fg); }
+  .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
   .url { color: var(--fg-bright, #cfff9a); overflow-wrap: anywhere; }
   .body { background: var(--bg-panel, #0a100a); padding: 6px; border: 1px solid var(--border, #2a4a2a); max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   .actions button { padding: 4px 12px; font-family: inherit; cursor: pointer; border: 1px solid var(--border, #2a4a2a); background: var(--bg, #0d120d); color: var(--fg, #a9ff68); }
-  .actions .confirm { background: var(--bg-panel, #152815); border-color: #d43c3c; color: #ffb0b0; }
+  .actions .confirm { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
 </style>

@@ -210,8 +210,8 @@
     border: 1px solid var(--border, #1e2a1e); padding: 3px 6px;
     font-family: inherit; font-size: 12px;
   }
-  .cf-chip.undoc label { color: #d4a548; }
-  .cf-tag { font-size: 10px; color: #a67c20; }
+  .cf-chip.undoc label { color: var(--warn); }
+  .cf-tag { font-size: 10px; color: var(--warn-border); }
   .cf-x { background: transparent; color: var(--fg-dim, #6ba544); border: 1px solid var(--border, #1e2a1e); cursor: pointer; padding: 0 6px; }
 
   .cf-picker { position: relative; }
@@ -223,7 +223,7 @@
   .cf-add:hover { border-style: solid; color: var(--fg, #a9ff68); }
   .cf-dropdown {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 5;
-    background: #0a100a; border: 1px solid var(--border-strong, #6ba544);
+    background: var(--bg-panel); border: 1px solid var(--border-strong);
     padding: 6px; max-height: 280px; overflow-y: auto;
   }
   .cf-search {
@@ -234,7 +234,7 @@
   .cf-group { color: var(--fg-dim, #6ba544); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
   .cf-opt { padding: 2px 6px; color: var(--fg, #ccc); cursor: pointer; }
   .cf-opt:hover:not(.disabled) { background: var(--bg-panel, #152815); }
-  .cf-opt.disabled { color: #555; text-decoration: line-through; cursor: not-allowed; }
+  .cf-opt.disabled { color: var(--fg-dim); opacity: 0.5; text-decoration: line-through; cursor: not-allowed; }
 
   .cf-raw {
     background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
