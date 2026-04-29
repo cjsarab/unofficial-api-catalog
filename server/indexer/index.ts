@@ -1,10 +1,19 @@
 import type { Database } from "bun:sqlite";
 import { unlink } from "node:fs/promises";
 
-import { openIndex } from "./sqlite.ts";
+import { openIndex, setMeta } from "./sqlite.ts";
 import { walkCatalog, parseResourceFolderName, type WalkedFile } from "./walker.ts";
 import { parseSpec, type ParsedSpec } from "./parser.ts";
 import type { LineageAnnotation } from "./lineage.ts";
+
+// Scan-status keys persisted in `meta` so the UI can surface "indexing was
+// interrupted last time" after a tab close, kill, or thrown error.
+export const META_LAST_SCAN_STATUS = "last_scan_status";
+export const META_LAST_SCAN_STARTED = "last_scan_started_at";
+export const META_LAST_SCAN_FINISHED = "last_scan_finished_at";
+export const META_LAST_SCAN_ERROR = "last_scan_error";
+
+export type LastScanStatus = "running" | "complete" | "aborted" | "error";
 
 export interface IndexProgress {
   total: number;
@@ -31,10 +40,46 @@ export interface IndexStats extends IndexProgress {
  */
 export async function indexCatalog(
   rootDir: string,
-  opts: { db?: Database; onProgress?: (p: IndexProgress) => void } = {},
+  opts: {
+    db?: Database;
+    onProgress?: (p: IndexProgress) => void;
+    /**
+     * If passed, an abort flips the scan to status='aborted' (with a recorded
+     * `aborted_at`) and rejects the returned promise with the signal's reason.
+     * Per-file granular: a partial scan leaves rows already written, but the
+     * meta status flag tells the UI the index is incomplete.
+     */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<IndexStats> {
   const db = opts.db ?? openIndex();
   const start = Date.now();
+  setMeta(db, META_LAST_SCAN_STATUS, "running");
+  setMeta(db, META_LAST_SCAN_STARTED, String(start));
+  setMeta(db, META_LAST_SCAN_ERROR, "");
+
+  try {
+    const stats = await runScan(db, rootDir, start, opts);
+    setMeta(db, META_LAST_SCAN_STATUS, "complete");
+    setMeta(db, META_LAST_SCAN_FINISHED, String(Date.now()));
+    return stats;
+  } catch (err) {
+    const isAbort =
+      err instanceof DOMException && err.name === "AbortError" ||
+      (opts.signal?.aborted ?? false);
+    setMeta(db, META_LAST_SCAN_STATUS, isAbort ? "aborted" : "error");
+    setMeta(db, META_LAST_SCAN_FINISHED, String(Date.now()));
+    setMeta(db, META_LAST_SCAN_ERROR, isAbort ? "" : (err as Error).message);
+    throw err;
+  }
+}
+
+async function runScan(
+  db: Database,
+  rootDir: string,
+  start: number,
+  opts: { onProgress?: (p: IndexProgress) => void; signal?: AbortSignal },
+): Promise<IndexStats> {
 
   const stats: IndexStats = {
     total: 0,
@@ -218,6 +263,11 @@ export async function indexCatalog(
   }
 
   for (const file of files) {
+    // Per-file abort check. Granular enough that an aborted scan stops within
+    // the time it takes to parse one YAML — no full-walk wait — but not so
+    // tight that the check dominates the loop body.
+    opts.signal?.throwIfAborted();
+
     stats.processed += 1;
     familySet.add(file.family);
 

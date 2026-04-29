@@ -42,6 +42,13 @@
     errors: string[];
   };
 
+  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScan = {
+    status: LastScanStatus | null;
+    startedAt: number | null;
+    finishedAt: number | null;
+    error: string | null;
+  };
   type Summary = {
     apiCount: number;
     endpointCount: number;
@@ -51,6 +58,7 @@
     families: Array<{ family: string; c: number }>;
     domains: Array<{ source_domain: string | null; c: number }>;
     errors: number;
+    lastScan: LastScan;
   };
 
   type ThemeName = "phosphor" | "amber" | "dos" | "beige";
@@ -458,6 +466,38 @@
     if (wizardPath) await doValidate(wizardPath);
   }
 
+  // Re-scan the existing catalog without going back through the wizard. Used
+  // by the "indexing incomplete" banner + status-bar chip when the previous
+  // scan was aborted (tab close, kill, error).
+  let rescanInFlight = $state(false);
+  async function triggerRescan() {
+    if (rescanInFlight || !config?.catalogPath) return;
+    rescanInFlight = true;
+    wizardProgress = null;
+    wizardToast = null;
+    try {
+      await new Promise<void>((resolvePromise) => {
+        const url = `/api/index/scan-stream?path=${encodeURIComponent(config!.catalogPath!)}`;
+        const source = new EventSource(url);
+        source.addEventListener("progress", (e: MessageEvent) => {
+          wizardProgress = JSON.parse(e.data);
+        });
+        source.addEventListener("done", () => {
+          source.close();
+          resolvePromise();
+        });
+        source.addEventListener("error", () => {
+          source.close();
+          resolvePromise();
+        });
+      });
+      await loadDashboardData();
+    } finally {
+      rescanInFlight = false;
+      wizardProgress = null;
+    }
+  }
+
   async function clearIndexAction() {
     const ok = window.confirm(
       "Delete the local SQLite index? Your catalog folder and API keys are untouched — only the parsed index on disk is removed. You'll need to re-index after.",
@@ -671,7 +711,13 @@
     {/snippet}
     {#snippet middle()}
       {#if route.kind === "overview"}
-        <CatalogOverview onSelectColumn={selectColumn} onSelectTable={selectTable} />
+        <CatalogOverview
+          onSelectColumn={selectColumn}
+          onSelectTable={selectTable}
+          lastScan={summary?.lastScan ?? null}
+          rescanInFlight={rescanInFlight}
+          onRescan={triggerRescan}
+        />
       {:else if route.kind === "api"}
         <ApiDocsView
           family={route.family}
@@ -730,7 +776,15 @@
       {/if}
     {/snippet}
     {#snippet statusBar()}
-      <StatusBar summary={summary} catalogPath={config?.catalogPath} env={activeEnvName} lastResponse={null} />
+      <StatusBar
+        summary={summary}
+        catalogPath={config?.catalogPath}
+        env={activeEnvName}
+        lastResponse={null}
+        lastScan={summary?.lastScan ?? null}
+        rescanInFlight={rescanInFlight}
+        onRescan={triggerRescan}
+      />
     {/snippet}
   </Shell>
 

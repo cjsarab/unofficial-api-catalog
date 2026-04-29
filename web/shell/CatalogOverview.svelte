@@ -12,11 +12,32 @@
   type TopColumn = { column_name: string; api_count: number; total_occurrences: number };
   type TopTable = { table: string; api_count: number };
 
+  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScan = {
+    status: LastScanStatus | null;
+    startedAt: number | null;
+    finishedAt: number | null;
+    error: string | null;
+  };
+
   type Props = {
     onSelectColumn: (name: string) => void;
     onSelectTable: (name: string) => void;
+    lastScan?: LastScan | null;
+    rescanInFlight?: boolean;
+    onRescan?: () => void;
   };
-  let { onSelectColumn, onSelectTable }: Props = $props();
+  let {
+    onSelectColumn,
+    onSelectTable,
+    lastScan = null,
+    rescanInFlight = false,
+    onRescan,
+  }: Props = $props();
+
+  const incomplete = $derived(
+    !!lastScan && (lastScan.status === "aborted" || lastScan.status === "error"),
+  );
 
   let summary = $state<Summary | null>(null);
   let topColumns = $state<TopColumn[]>([]);
@@ -46,6 +67,18 @@
     <h1>Select an API from the tree, or start with one of these.</h1>
     <p class="dim">Use the family tree, column dictionary, or table list on the left. Any column or table below also jumps to its profile.</p>
   </header>
+
+  {#if incomplete}
+    <div class="incomplete-banner" role="status">
+      <div class="text">
+        <strong>Indexing was interrupted.</strong>
+        The numbers below may be incomplete{#if lastScan?.error} ({lastScan.error}){/if}.
+      </div>
+      <button class="rescan" onclick={() => onRescan?.()} disabled={rescanInFlight || !onRescan}>
+        {rescanInFlight ? "Rescanning…" : "Re-scan"}
+      </button>
+    </div>
+  {/if}
 
   {#if summary}
     <section class="stats">
@@ -208,4 +241,34 @@
     .split { grid-template-columns: 1fr; }
     ul.list.two-col { grid-template-columns: 1fr; }
   }
+
+  .incomplete-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border: 1px solid var(--warn);
+    border-left-width: 3px;
+    background: var(--bg-panel);
+    color: var(--fg);
+    padding: var(--space-3) var(--space-4);
+    margin: 0 0 var(--space-4);
+    font-size: 12px;
+  }
+  .incomplete-banner strong { color: var(--warn); margin-right: 6px; }
+  .incomplete-banner .rescan {
+    font: inherit;
+    font-family: var(--font-mono);
+    background: transparent;
+    border: 1px solid var(--warn);
+    color: var(--warn);
+    padding: 4px 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .incomplete-banner .rescan:hover:not(:disabled) {
+    background: var(--warn);
+    color: var(--bg);
+  }
+  .incomplete-banner .rescan:disabled { cursor: progress; opacity: 0.7; }
 </style>

@@ -17,7 +17,31 @@ export function openIndex(path: string = INDEX_PATH): Database {
   db.exec("PRAGMA temp_store = MEMORY");
 
   migrate(db);
+
+  // If the previous process was killed mid-scan, the meta row is stuck on
+  // `running`. We're single-process, so any `running` we see on open is
+  // necessarily stale — reclassify so the UI surfaces the interruption
+  // instead of waiting forever for a phantom in-flight scan.
+  const stuck = db
+    .query<{ value: string }, []>(`SELECT value FROM meta WHERE key = 'last_scan_status'`)
+    .get();
+  if (stuck?.value === "running") {
+    db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('last_scan_status', 'aborted')`).run();
+    db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES ('last_scan_finished_at', ?)`).run(String(Date.now()));
+  }
+
   return db;
+}
+
+export function getMeta(db: Database, key: string): string | null {
+  const row = db
+    .query<{ value: string }, [string]>(`SELECT value FROM meta WHERE key = ?`)
+    .get(key);
+  return row ? row.value : null;
+}
+
+export function setMeta(db: Database, key: string, value: string): void {
+  db.query(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`).run(key, value);
 }
 
 function migrate(db: Database): void {
