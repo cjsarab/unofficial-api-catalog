@@ -73,6 +73,11 @@
   // ---- state ------------------------------------------------------------
   let config = $state<AppConfig | null>(null);
   let summary = $state<Summary | null>(null);
+  // Distinct from `summary === null` because a valid configured catalog
+  // still produces a null summary while the dashboard fetch is in flight.
+  // Without this flag, mode flips to "wizard" between the moment config
+  // arrives and the moment summary arrives — that's the wizard flash. (B-001)
+  let summaryLoaded = $state(false);
   let serverVersion = $state<string | undefined>(undefined);
   let loadError = $state<string | null>(null);
   let envs = $state<Environment[] | null>(null);
@@ -261,6 +266,10 @@
     if (!config) return "loading";
     if (!config.catalogPath) return "wizard";
     if (config.catalogPathStatus && config.catalogPathStatus !== "ok") return "wizard";
+    // Don't decide wizard-vs-app until we know whether the configured catalog
+    // produced a non-empty summary — otherwise the wizard flashes for one
+    // frame on every cold start. (B-001)
+    if (!summaryLoaded) return "loading";
     if (!summary || summary.apiCount === 0) return "wizard";
     return "app";
   });
@@ -347,6 +356,8 @@
       if (res.ok) summary = (await res.json()) as Summary;
     } catch (err) {
       loadError = (err as Error).message;
+    } finally {
+      summaryLoaded = true;
     }
   }
 
