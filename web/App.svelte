@@ -774,8 +774,7 @@
       {:else}
         <PanePlaceholder
           title="Try API"
-          description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
-          taskNumber={15}
+          description="Focus an endpoint to try it. Ctrl+. to collapse."
         />
       {/if}
     {/snippet}
