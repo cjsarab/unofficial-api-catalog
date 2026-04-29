@@ -2,7 +2,8 @@
   import type { EndpointSchema, OpenAPIParameter } from "../lib/openapi.ts";
   import type { ResponseView } from "./response/types.ts";
   import { decodeQueryValues } from "../lib/url-display.ts";
-  import { reprojectFormState, type FormState, type MigrationWarning } from "./try/version-migration.ts";
+  import { scrapeCriteriaFilters, inferRootShapes } from "../lib/criteria-scraper.ts";
+  import { reprojectFormState, isCriteriaParam, type FormState, type MigrationWarning } from "./try/version-migration.ts";
   import ParamsTab from "./try/ParamsTab.svelte";
   import HeadersTab from "./try/HeadersTab.svelte";
   import BodyTab from "./try/BodyTab.svelte";
@@ -107,11 +108,39 @@
       qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(val)}`);
     }
     // Criteria-style object query params: each one builds its own JSON object
-    // (e.g. `?criteria={names:[{firstName:X}]}&personFilter={personFilter:{id:Y}}`).
+    // (e.g. `?criteria={"names":[{"firstName":"X"}]}&personFilter={"personFilter":"Y"}`).
+    // The wire shape per rootKey comes from the description-scrape — array-of-
+    // objects (`criteria`), bare object, or scalar (`personFilter`). The form
+    // state is shape-agnostic, so without this lookup we'd always wrap in [] and
+    // produce `{"personFilter":[{"personFilter":"abc"}]}` which Ethos rejects.
+    const criteriaParams = currentSchema?.parameters.filter(isCriteriaParam) ?? [];
+    const shapeByParam = new Map<string, Map<string, "array-of-objects" | "object" | "scalar">>();
+    for (const cp of criteriaParams) {
+      const filters = scrapeCriteriaFilters(
+        cp.description ?? "",
+        cp.name,
+        typeof cp.example === "string" ? cp.example : undefined,
+      );
+      shapeByParam.set(cp.name, inferRootShapes(filters));
+    }
+
     for (const [paramName, perParam] of Object.entries(state.criteria)) {
       const obj: Record<string, unknown> = {};
+      const shapes = shapeByParam.get(paramName) ?? new Map();
       for (const [rk, leaves] of Object.entries(perParam)) {
-        obj[rk] = [Object.fromEntries(Object.entries(leaves).filter(([, v]) => v !== ""))];
+        const filledLeaves = Object.entries(leaves).filter(([, v]) => v !== "");
+        if (filledLeaves.length === 0) continue;
+        const shape = shapes.get(rk);
+        if (shape === "scalar" && filledLeaves.length === 1 && filledLeaves[0]![0] === rk) {
+          // {personFilter: "abc"} — single leaf whose name matches the rootKey
+          obj[rk] = filledLeaves[0]![1];
+        } else if (shape === "object") {
+          // {alternativeCredentials: {type: "x", value: "y"}}
+          obj[rk] = Object.fromEntries(filledLeaves);
+        } else {
+          // Default + "array-of-objects": {names: [{firstName: "James"}]}
+          obj[rk] = [Object.fromEntries(filledLeaves)];
+        }
       }
       if (Object.keys(obj).length === 0) continue;
       qs.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(JSON.stringify(obj))}`);
