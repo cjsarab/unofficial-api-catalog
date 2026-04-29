@@ -235,14 +235,18 @@
     writeFragment(ep);
   }
 
-  // Clear focus when leaving an API route.
+  // Clear focus when the user navigates to a different API (or leaves API
+  // routes entirely). Without the API-id check, a focus from `/apis/A/foo`
+  // survives navigation to `/apis/B/bar` and TryPanel re-fetches B's schema
+  // for A's endpoint path → 404 → "isn't in v1.0.0" orphan warning. (B-002)
+  let prevApiKey = $state<string | null>(null);
   $effect(() => {
-    if (route.kind !== "api") {
-      if (focusedEndpoint !== null) {
-        focusedEndpoint = null;
-        writeFragment(null);
-      }
+    const apiKey = route.kind === "api" ? `${route.family}/${route.resource}` : null;
+    if (apiKey !== prevApiKey && focusedEndpoint !== null) {
+      focusedEndpoint = null;
+      writeFragment(null);
     }
+    prevApiKey = apiKey;
   });
 
   // Re-read fragment when route arrives at an API detail view.
