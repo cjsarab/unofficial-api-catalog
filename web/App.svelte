@@ -244,7 +244,11 @@
   // routes entirely). Without the API-id check, a focus from `/apis/A/foo`
   // survives navigation to `/apis/B/bar` and TryPanel re-fetches B's schema
   // for A's endpoint path → 404 → "isn't in v1.0.0" orphan warning. (B-002)
-  let prevApiKey = $state<string | null>(null);
+  //
+  // prevApiKey is a plain `let` (not `$state`) because only this effect ever
+  // reads it. Promoting it would re-trigger the effect on every assignment
+  // (the effect both reads + writes it), doubling its work for no gain.
+  let prevApiKey: string | null = null;
   $effect(() => {
     const apiKey = route.kind === "api" ? `${route.family}/${route.resource}` : null;
     if (apiKey !== prevApiKey && focusedEndpoint !== null) {
@@ -559,8 +563,10 @@
       e.preventDefault();
       paletteOpen = !paletteOpen;
     }
-    // Ctrl+Shift+H — return to catalog overview from any deep view.
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "h" || e.key === "H")) {
+    // Ctrl+Shift+H — return to catalog overview from any deep view. Use
+    // e.code so the binding tracks the physical H key regardless of layout
+    // (AZERTY, Dvorak, etc.) — `e.key` is layout-dependent and unreliable.
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyH") {
       e.preventDefault();
       goOverview();
     }

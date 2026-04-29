@@ -3,6 +3,7 @@
   import type { ResponseView } from "./response/types.ts";
   import { decodeQueryValues } from "../lib/url-display.ts";
   import { scrapeCriteriaFilters, inferRootShapes } from "../lib/criteria-scraper.ts";
+  import { isJsonContentType } from "./response/format.ts";
   import { reprojectFormState, isCriteriaParam, type FormState, type MigrationWarning } from "./try/version-migration.ts";
   import ParamsTab from "./try/ParamsTab.svelte";
   import HeadersTab from "./try/HeadersTab.svelte";
@@ -275,7 +276,7 @@
       const ct = res.headers.get("content-type");
 
       let proxyError: ResponseView["proxyError"] | undefined;
-      if (!res.ok && ct?.startsWith("application/json")) {
+      if (!res.ok && isJsonContentType(ct)) {
         try {
           const parsed = JSON.parse(bodyText) as { error?: string; detail?: string; envId?: string };
           if (parsed && typeof parsed.error === "string") {
