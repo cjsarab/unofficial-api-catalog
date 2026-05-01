@@ -110,7 +110,7 @@
     flex-direction: column;
     height: 100%;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   header {
     display: flex;
@@ -120,17 +120,17 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg-panel);
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   header .spacer { flex: 1; }
   header .meta { color: var(--fg-dim); }
-  header .note { color: var(--fg-dim); font-size: 10px; }
+  header .note { color: var(--fg-dim); font-size: var(--fs-xs); }
   header button {
     font: inherit;
     background: transparent;
     color: var(--fg-dim);
     border: 1px solid var(--border);
-    padding: 2px 8px;
+    padding: var(--space-0) var(--space-2);
     cursor: pointer;
   }
   header button:hover { color: var(--accent); border-color: var(--accent); }

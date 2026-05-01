@@ -145,26 +145,26 @@
   header { margin-bottom: var(--space-5); }
   .label {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   h1 {
     color: var(--accent);
-    margin: 4px 0;
+    margin: var(--space-1) 0;
     font-size: 18px;
     letter-spacing: 0.02em;
   }
   h2 {
     color: var(--fg-bright);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     margin: var(--space-5) 0 var(--space-2);
     border-bottom: 1px dotted var(--border);
-    padding-bottom: 4px;
+    padding-bottom: var(--space-1);
   }
-  p.dim { color: var(--fg-dim); font-size: 12px; margin: var(--space-2) 0; }
+  p.dim { color: var(--fg-dim); font-size: var(--fs-base); margin: var(--space-2) 0; }
 
   section.stats dl {
     display: grid;
@@ -202,11 +202,11 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 2px;
+    gap: var(--space-0);
   }
   ul.list.two-col {
     grid-template-columns: repeat(2, 1fr);
-    gap: 2px var(--space-6);
+    gap: var(--space-0) var(--space-6);
   }
   ul.family-list li,
   ul.list li {
@@ -218,7 +218,7 @@
   .count {
     color: var(--fg-dim);
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   a {
     color: var(--fg-bright);
@@ -258,16 +258,16 @@
     color: var(--fg);
     padding: var(--space-3) var(--space-4);
     margin: 0 0 var(--space-4);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
-  .incomplete-banner strong { color: var(--warn); margin-right: 6px; }
+  .incomplete-banner strong { color: var(--warn); margin-right: var(--space-1-5); }
   .incomplete-banner .rescan {
     font: inherit;
     font-family: var(--font-mono);
     background: transparent;
     border: 1px solid var(--warn);
     color: var(--warn);
-    padding: 4px 12px;
+    padding: var(--space-1) var(--space-3);
     cursor: pointer;
     flex-shrink: 0;
   }

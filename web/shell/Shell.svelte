@@ -286,11 +286,11 @@
     border: 1px solid var(--border-strong);
     padding: var(--space-5) var(--space-6);
     max-width: 420px;
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   .help-card .label {
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-bottom: var(--space-3);
@@ -298,16 +298,16 @@
   .help-card dl {
     display: grid;
     grid-template-columns: 100px 1fr;
-    gap: 4px var(--space-3);
+    gap: var(--space-1) var(--space-3);
     margin: 0 0 var(--space-4);
   }
   .help-card dt {
     font-family: var(--font-mono);
     background: var(--bg-raised);
     border: 1px solid var(--border);
-    padding: 1px 6px;
+    padding: 1px var(--space-1-5);
     text-align: center;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .help-card dd { margin: 0; align-self: center; color: var(--fg); }
   .help-card dd .dim { color: var(--fg-dim); font-size: 10.5px; }
@@ -316,7 +316,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 5px 12px;
+    padding: 5px var(--space-3);
     cursor: pointer;
     width: 100%;
   }

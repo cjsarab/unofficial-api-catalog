@@ -90,7 +90,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 3px 10px;
+    padding: 3px var(--space-2-5);
     border-top: 1px solid var(--border);
     background: var(--bg-raised);
     color: var(--fg-dim);
@@ -98,7 +98,7 @@
     white-space: nowrap;
     overflow: hidden;
   }
-  .left, .right { display: flex; gap: 6px; align-items: center; }
+  .left, .right { display: flex; gap: var(--space-1-5); align-items: center; }
   .sep { opacity: 0.5; }
   .env { color: var(--fg); }
   .status-code.ok { color: var(--fg-bright); }
@@ -110,7 +110,7 @@
     background: transparent;
     border: 1px solid var(--warn);
     color: var(--warn);
-    padding: 1px 6px;
+    padding: 1px var(--space-1-5);
     border-radius: 2px;
     cursor: pointer;
     line-height: 1.3;

@@ -91,7 +91,7 @@
 <style>
   .node {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
     line-height: 1.4;
   }
   .chev {

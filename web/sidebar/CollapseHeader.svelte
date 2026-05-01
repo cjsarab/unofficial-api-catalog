@@ -20,7 +20,7 @@
   .header {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-1-5);
     width: 100%;
     font: inherit;
     font-size: 10.5px;
@@ -31,7 +31,7 @@
     border: none;
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
-    padding: 5px 10px;
+    padding: 5px var(--space-2-5);
     cursor: pointer;
     text-align: left;
   }
@@ -47,7 +47,7 @@
   .count {
     color: var(--fg-dim);
     font-variant-numeric: tabular-nums;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0;
   }
 </style>

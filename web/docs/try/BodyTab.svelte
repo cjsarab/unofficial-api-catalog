@@ -76,25 +76,25 @@
 {/if}
 
 <style>
-  .bt-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .bt-toggle { display: flex; gap: 2px; }
+  .bt-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1-5); }
+  .bt-toggle { display: flex; gap: var(--space-0); }
   .bt-mode {
-    background: transparent; color: var(--fg-dim, #6ba544);
-    border: 1px solid var(--border, #1e2a1e); padding: 2px 8px;
-    font-family: inherit; cursor: pointer; font-size: 11px;
+    background: transparent; color: var(--fg-dim);
+    border: 1px solid var(--border); padding: var(--space-0) var(--space-2);
+    font-family: inherit; cursor: pointer; font-size: var(--fs-sm);
   }
-  .bt-mode.active { background: var(--bg-panel, #152815); color: var(--fg, #a9ff68); border-color: var(--border-strong, #6ba544); }
+  .bt-mode.active { background: var(--bg-panel); color: var(--fg); border-color: var(--border-strong); }
   .bt-prefill {
-    background: transparent; color: var(--fg, #a9ff68);
-    border: 1px solid var(--border, #2a4a2a); padding: 2px 8px;
-    font-family: inherit; cursor: pointer; font-size: 11px;
+    background: transparent; color: var(--fg);
+    border: 1px solid var(--border); padding: var(--space-0) var(--space-2);
+    font-family: inherit; cursor: pointer; font-size: var(--fs-sm);
   }
   .bt-prefill:disabled { opacity: 0.4; cursor: not-allowed; }
   .bt-raw {
-    background: var(--bg, #0a100a); color: var(--fg-bright, #cfff9a);
-    border: 1px solid var(--border, #1e2a1e); padding: 6px;
-    font-family: ui-monospace, monospace; font-size: 11px;
+    background: var(--bg); color: var(--fg-bright);
+    border: 1px solid var(--border); padding: var(--space-1-5);
+    font-family: ui-monospace, monospace; font-size: var(--fs-sm);
     width: 100%; resize: vertical; min-height: 200px;
   }
-  .empty { color: var(--fg-dim, #6ba544); font-style: italic; }
+  .empty { color: var(--fg-dim); font-style: italic; }
 </style>

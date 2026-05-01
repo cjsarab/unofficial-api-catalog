@@ -170,8 +170,8 @@
 <style>
   .filter {
     display: flex;
-    gap: 4px;
-    padding: 6px 8px;
+    gap: var(--space-1);
+    padding: var(--space-1-5) var(--space-2);
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     position: sticky;
@@ -185,7 +185,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 3px 8px;
+    padding: 3px var(--space-2);
   }
   .filter input:focus { outline: none; border-color: var(--accent); }
   .clear-btn {
@@ -201,22 +201,22 @@
 
   ul { list-style: none; margin: 0; padding: 0; }
 
-  .pad { padding: 8px 10px; }
-  .pad-deep { padding: 4px 10px 4px 28px; }
+  .pad { padding: var(--space-2) var(--space-2-5); }
+  .pad-deep { padding: var(--space-1) var(--space-2-5) var(--space-1) 28px; }
   .dim { color: var(--fg-dim); }
-  .small { font-size: 11px; }
+  .small { font-size: var(--fs-sm); }
 
   .col-row, .group-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-1-5);
     width: 100%;
     font: inherit;
-    font-size: 11px;
+    font-size: var(--fs-sm);
     background: transparent;
     border: none;
     color: var(--fg);
-    padding: 2px 10px 2px 14px;
+    padding: var(--space-0) var(--space-2-5) var(--space-0) 14px;
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
@@ -224,7 +224,7 @@
   }
   .col-row:hover, .group-row:hover { background: var(--bg-raised); color: var(--accent); }
   .col-row.active { background: var(--border); color: var(--accent); }
-  .nested-row { padding-left: 28px; font-size: 11px; }
+  .nested-row { padding-left: 28px; font-size: var(--fs-sm); }
 
   .group-row {
     font-weight: 500;
@@ -238,16 +238,16 @@
   }
 
   .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-  .count { color: var(--fg-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .count { color: var(--fg-dim); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 
-  .more { padding: 8px 14px; }
+  .more { padding: var(--space-2) 14px; }
   .link {
     background: transparent;
     border: none;
     color: var(--fg-dim);
     border-bottom: 1px dotted var(--border-strong);
     font: inherit;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     cursor: pointer;
     padding: 0;
   }

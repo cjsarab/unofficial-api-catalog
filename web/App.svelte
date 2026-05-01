@@ -859,14 +859,14 @@
   }
   .tag {
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   h1 {
     color: var(--accent);
     margin: var(--space-1) 0 var(--space-3);
-    font-size: 22px;
+    font-size: var(--fs-xl);
     letter-spacing: 0.02em;
   }
   h2 {
@@ -876,23 +876,23 @@
     text-transform: uppercase;
     margin: var(--space-5) 0 var(--space-2);
     border-bottom: 1px dotted var(--border);
-    padding-bottom: 4px;
+    padding-bottom: var(--space-1);
   }
-  h3 { color: var(--fg-bright); font-size: 14px; margin: 0 0 var(--space-2); }
-  h4 { color: var(--warn); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin: var(--space-3) 0 4px; }
+  h3 { color: var(--fg-bright); font-size: var(--fs-md); margin: 0 0 var(--space-2); }
+  h4 { color: var(--warn); font-size: var(--fs-sm); letter-spacing: 0.1em; text-transform: uppercase; margin: var(--space-3) 0 var(--space-1); }
   p { line-height: 1.55; margin: var(--space-3) 0; }
-  p.dim { color: var(--fg-dim); font-size: 12px; }
-  p.small { font-size: 11px; }
-  p.error { color: var(--danger); font-size: 12px; border: 1px solid var(--danger); padding: 6px 10px; }
+  p.dim { color: var(--fg-dim); font-size: var(--fs-base); }
+  p.small { font-size: var(--fs-sm); }
+  p.error { color: var(--danger); font-size: var(--fs-base); border: 1px solid var(--danger); padding: var(--space-1-5) var(--space-2-5); }
   p.ok { color: var(--fg-bright); }
-  code { background: var(--bg-raised); padding: 1px 6px; border: 1px solid var(--border); }
+  code { background: var(--bg-raised); padding: 1px var(--space-1-5); border: 1px solid var(--border); }
 
   button {
     font: inherit;
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 6px 14px;
+    padding: var(--space-1-5) 14px;
     cursor: pointer;
   }
   button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
@@ -903,7 +903,7 @@
     background: var(--accent);
     border-color: var(--accent);
     font-weight: 600;
-    padding: 8px 20px;
+    padding: var(--space-2) var(--space-5);
   }
   button.primary:hover:not(:disabled) { filter: brightness(1.1); }
   button.primary:disabled { color: var(--fg-dim); background: var(--bg-raised); border-color: var(--border); }
@@ -931,7 +931,7 @@
   dt {
     color: var(--fg-dim);
     text-transform: uppercase;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     align-self: center;
   }
@@ -945,10 +945,10 @@
   ul.probes li {
     display: flex;
     gap: var(--space-3);
-    padding: 2px 0;
+    padding: var(--space-0) 0;
     border-bottom: 1px dotted var(--border);
   }
-  ul.warn li { color: var(--warn); padding: 2px 0; }
+  ul.warn li { color: var(--warn); padding: var(--space-0) 0; }
 
   section.validation {
     border: 1px solid var(--border);
@@ -957,7 +957,7 @@
   }
   section.validation.ok { border-color: var(--border-strong); background: color-mix(in srgb, var(--bg-raised) 80%, transparent); }
   section.validation.err { border-color: var(--danger); }
-  section.validation ul { margin: 4px 0; padding-left: 16px; list-style: square; }
+  section.validation ul { margin: var(--space-1) 0; padding-left: var(--space-4); list-style: square; }
   section.validation li { padding: 1px 0; }
 
   .picker-row { display: flex; gap: var(--space-2); margin: var(--space-3) 0; }
@@ -967,7 +967,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 6px 10px;
+    padding: var(--space-1-5) var(--space-2-5);
   }
   .picker-row input:focus { outline: none; border-color: var(--accent); color: var(--accent); }
 
@@ -996,13 +996,13 @@
   .progress-meta {
     display: flex;
     justify-content: space-between;
-    margin-top: 6px;
-    font-size: 11px;
+    margin-top: var(--space-1-5);
+    font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
   }
   .progress-meta .dim { color: var(--fg-dim); }
   .progress-file {
-    margin-top: 4px;
+    margin-top: var(--space-1);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1020,7 +1020,7 @@
   .settings-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--overlay-bg);
     display: grid;
     place-items: center;
     z-index: 90;
@@ -1042,14 +1042,14 @@
   }
   .route-placeholder .label {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   .route-placeholder h1 {
     color: var(--accent);
     font-size: 20px;
-    margin: 6px 0 var(--space-3);
+    margin: var(--space-1-5) 0 var(--space-3);
     letter-spacing: 0.02em;
   }
 </style>

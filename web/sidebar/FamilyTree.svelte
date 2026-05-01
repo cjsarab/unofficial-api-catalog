@@ -223,23 +223,23 @@
 
 <style>
   .pad { padding: var(--space-3) var(--space-4); }
-  .dim { color: var(--fg-dim); font-size: 11px; }
-  .error { color: var(--danger); font-size: 11px; }
-  .small { font-size: 11px; }
+  .dim { color: var(--fg-dim); font-size: var(--fs-sm); }
+  .error { color: var(--danger); font-size: var(--fs-sm); }
+  .small { font-size: var(--fs-sm); }
 
   ul { list-style: none; margin: 0; padding: 0; }
-  ul.families { padding: 2px 0; }
+  ul.families { padding: var(--space-0) 0; }
 
   .row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-1-5);
     width: 100%;
     font: inherit;
     background: transparent;
     border: none;
     color: var(--fg);
-    padding: 2px 8px 2px 6px;
+    padding: var(--space-0) var(--space-2) var(--space-0) var(--space-1-5);
     cursor: pointer;
     text-align: left;
     font-size: 11.5px;
@@ -263,7 +263,7 @@
   .resource-row {
     padding-left: 28px;
     color: var(--fg);
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
 
   .name {
@@ -273,7 +273,7 @@
   }
   .count {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
   }
 
@@ -281,7 +281,7 @@
     font-size: 9px;
     color: var(--fg-dim);
     background: var(--bg-raised);
-    padding: 0 4px;
+    padding: 0 var(--space-1);
     border: 1px solid var(--border);
     font-variant-numeric: tabular-nums;
   }
@@ -291,14 +291,14 @@
     text-transform: uppercase;
     color: var(--warn);
     border: 1px solid var(--warn);
-    padding: 0 4px;
+    padding: 0 var(--space-1);
   }
   .status-badge.status-beta { color: var(--warn); border-color: var(--warn); }
 
   .filter {
     display: flex;
-    gap: 4px;
-    padding: 6px 8px;
+    gap: var(--space-1);
+    padding: var(--space-1-5) var(--space-2);
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     position: sticky;
@@ -312,7 +312,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 3px 8px;
+    padding: 3px var(--space-2);
   }
   .filter input:focus { outline: none; border-color: var(--accent); }
   .clear-btn {
@@ -327,7 +327,7 @@
   .clear-btn:hover { color: var(--accent); border-color: var(--accent); }
 
   .filter-row {
-    padding-left: 12px;
+    padding-left: var(--space-3);
   }
   .filter-row .family-hint {
     font-size: 9.5px;
@@ -336,5 +336,5 @@
     padding: 0 5px;
     border: 1px solid var(--border);
   }
-  .more { padding: 8px 14px; }
+  .more { padding: var(--space-2) 14px; }
 </style>

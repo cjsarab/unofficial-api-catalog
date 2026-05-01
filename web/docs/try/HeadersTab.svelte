@@ -70,30 +70,30 @@
 </div>
 
 <style>
-  .ht { display: flex; flex-direction: column; gap: 4px; }
-  .ht-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 4px; align-items: center; }
+  .ht { display: flex; flex-direction: column; gap: var(--space-1); }
+  .ht-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: var(--space-1); align-items: center; }
   .ht-row.locked {
-    background: var(--bg-panel, #152815); border: 1px solid var(--border, #2a4a2a);
-    padding: 3px 6px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    padding: 3px var(--space-1-5);
   }
   .ht-name, .ht-value {
-    background: var(--bg, #0d120d); color: var(--fg, #a9ff68);
-    border: 1px solid var(--border, #1e2a1e); padding: 3px 6px;
-    font-family: inherit; font-size: 12px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); padding: 3px var(--space-1-5);
+    font-family: inherit; font-size: var(--fs-base);
   }
   .ht-name:disabled { opacity: 0.6; }
-  .ht-locked-label { color: var(--fg-dim, #6ba544); font-size: 12px; }
-  .ht-locked-value { color: var(--fg-bright, #cfff9a); font-size: 12px; overflow-wrap: anywhere; }
+  .ht-locked-label { color: var(--fg-dim); font-size: var(--fs-base); }
+  .ht-locked-value { color: var(--fg-bright); font-size: var(--fs-base); overflow-wrap: anywhere; }
   .ht-auto {
-    background: transparent; color: var(--fg-dim, #6ba544);
-    border: 1px solid var(--border, #2a4a2a); padding: 1px 5px;
-    font-family: inherit; font-size: 10px; cursor: pointer;
+    background: transparent; color: var(--fg-dim);
+    border: 1px solid var(--border); padding: 1px 5px;
+    font-family: inherit; font-size: var(--fs-xs); cursor: pointer;
   }
-  .ht-x { background: transparent; color: var(--fg-dim, #6ba544); border: 1px solid var(--border, #1e2a1e); padding: 1px 6px; cursor: pointer; }
+  .ht-x { background: transparent; color: var(--fg-dim); border: 1px solid var(--border); padding: 1px var(--space-1-5); cursor: pointer; }
   .ht-add {
-    background: transparent; color: var(--fg-dim, #6ba544);
-    border: 1px dashed var(--border, #2a4a2a); padding: 3px 6px;
+    background: transparent; color: var(--fg-dim);
+    border: 1px dashed var(--border); padding: 3px var(--space-1-5);
     font-family: inherit; cursor: pointer; align-self: flex-start;
   }
-  .ht-add:hover { color: var(--fg, #a9ff68); border-style: solid; }
+  .ht-add:hover { color: var(--fg); border-style: solid; }
 </style>

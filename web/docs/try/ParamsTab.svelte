@@ -86,16 +86,16 @@
 {/if}
 
 <style>
-  .pt-section { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .pt-section { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2-5); }
   h4 {
-    color: var(--fg, #8fe68f); border-bottom: 1px solid var(--border, #2a4a2a);
-    padding-bottom: 2px; margin: 0 0 4px 0; font-size: 11px;
+    color: var(--fg); border-bottom: 1px solid var(--border);
+    padding-bottom: var(--space-0); margin: 0 0 var(--space-1) 0; font-size: var(--fs-sm);
     text-transform: uppercase; letter-spacing: 0.05em; font-weight: normal;
   }
-  .pt-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 6px; align-items: start; }
-  .pt-row label { color: var(--fg-dim, #6ba544); font-size: 12px; display: flex; flex-direction: column; padding-top: 4px; }
-  .pt-type { color: var(--fg-dim); font-size: 10px; }
-  .pt-req { color: var(--warn); margin-left: 2px; align-self: flex-start; }
+  .pt-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: var(--space-1-5); align-items: start; }
+  .pt-row label { color: var(--fg-dim); font-size: var(--fs-base); display: flex; flex-direction: column; padding-top: var(--space-1); }
+  .pt-type { color: var(--fg-dim); font-size: var(--fs-xs); }
+  .pt-req { color: var(--warn); margin-left: var(--space-0); align-self: flex-start; }
   .pt-criteria { display: block; }
-  .empty { color: var(--fg-dim, #6ba544); font-style: italic; }
+  .empty { color: var(--fg-dim); font-style: italic; }
 </style>

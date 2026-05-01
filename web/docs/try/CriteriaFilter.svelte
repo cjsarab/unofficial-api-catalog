@@ -259,57 +259,57 @@
 </div>
 
 <style>
-  .cf { display: flex; flex-direction: column; gap: 6px; }
+  .cf { display: flex; flex-direction: column; gap: var(--space-1-5); }
   .cf-head { display: flex; justify-content: space-between; align-items: center; }
-  .cf-title { color: var(--fg, #a9ff68); font-size: 12px; }
-  .cf-dim { color: var(--fg-dim, #6ba544); }
-  .cf-toggle { display: flex; gap: 2px; }
+  .cf-title { color: var(--fg); font-size: var(--fs-base); }
+  .cf-dim { color: var(--fg-dim); }
+  .cf-toggle { display: flex; gap: var(--space-0); }
   .cf-mode {
-    background: transparent; color: var(--fg-dim, #6ba544);
-    border: 1px solid var(--border, #1e2a1e); padding: 1px 6px;
-    font-family: inherit; cursor: pointer; font-size: 11px;
+    background: transparent; color: var(--fg-dim);
+    border: 1px solid var(--border); padding: 1px var(--space-1-5);
+    font-family: inherit; cursor: pointer; font-size: var(--fs-sm);
   }
-  .cf-mode.active { background: var(--bg-panel, #152815); color: var(--fg, #a9ff68); border-color: var(--border-strong, #6ba544); }
+  .cf-mode.active { background: var(--bg-panel); color: var(--fg); border-color: var(--border-strong); }
 
-  .cf-chips { display: flex; flex-direction: column; gap: 4px; }
-  .cf-chip { display: grid; grid-template-columns: minmax(110px, max-content) 1fr auto; gap: 6px; align-items: center; }
-  .cf-chip label { color: var(--fg-dim, #6ba544); font-size: 12px; }
+  .cf-chips { display: flex; flex-direction: column; gap: var(--space-1); }
+  .cf-chip { display: grid; grid-template-columns: minmax(110px, max-content) 1fr auto; gap: var(--space-1-5); align-items: center; }
+  .cf-chip label { color: var(--fg-dim); font-size: var(--fs-base); }
   .cf-chip input {
-    background: var(--bg, #0d120d); color: var(--fg, #a9ff68);
-    border: 1px solid var(--border, #1e2a1e); padding: 3px 6px;
-    font-family: inherit; font-size: 12px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); padding: 3px var(--space-1-5);
+    font-family: inherit; font-size: var(--fs-base);
   }
   .cf-chip.undoc label { color: var(--warn); }
-  .cf-tag { font-size: 10px; color: var(--warn-border); }
-  .cf-x { background: transparent; color: var(--fg-dim, #6ba544); border: 1px solid var(--border, #1e2a1e); cursor: pointer; padding: 0 6px; }
+  .cf-tag { font-size: var(--fs-xs); color: var(--warn-border); }
+  .cf-x { background: transparent; color: var(--fg-dim); border: 1px solid var(--border); cursor: pointer; padding: 0 var(--space-1-5); }
 
   .cf-picker { position: relative; }
   .cf-add {
-    background: var(--bg-panel, #152815); color: var(--fg-dim, #6ba544);
-    border: 1px dashed var(--border, #2a4a2a); padding: 3px 6px;
+    background: var(--bg-panel); color: var(--fg-dim);
+    border: 1px dashed var(--border); padding: 3px var(--space-1-5);
     font-family: inherit; cursor: pointer; width: 100%; text-align: left;
   }
-  .cf-add:hover { border-style: solid; color: var(--fg, #a9ff68); }
+  .cf-add:hover { border-style: solid; color: var(--fg); }
   .cf-dropdown {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 5;
     background: var(--bg-panel); border: 1px solid var(--border-strong);
-    padding: 6px; max-height: 280px; overflow-y: auto;
+    padding: var(--space-1-5); max-height: 280px; overflow-y: auto;
   }
   .cf-search {
-    background: var(--bg, #0d120d); color: var(--fg, #a9ff68);
-    border: 1px solid var(--border, #1e2a1e); padding: 3px 6px;
-    font-family: inherit; width: 100%; margin-bottom: 6px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); padding: 3px var(--space-1-5);
+    font-family: inherit; width: 100%; margin-bottom: var(--space-1-5);
   }
-  .cf-group { color: var(--fg-dim, #6ba544); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
-  .cf-opt { padding: 2px 6px; color: var(--fg, #ccc); cursor: pointer; }
-  .cf-opt:hover:not(.disabled) { background: var(--bg-panel, #152815); }
+  .cf-group { color: var(--fg-dim); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--space-1-5); }
+  .cf-opt { padding: var(--space-0) var(--space-1-5); color: var(--fg); cursor: pointer; }
+  .cf-opt:hover:not(.disabled) { background: var(--bg-panel); }
   .cf-opt.disabled { color: var(--fg-dim); opacity: 0.5; text-decoration: line-through; cursor: not-allowed; }
 
   .cf-raw {
-    background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
-    border: 1px solid var(--border, #1e2a1e); padding: 6px;
-    font-family: inherit; font-size: 11px; width: 100%; resize: vertical;
+    background: var(--bg); color: var(--fg-bright);
+    border: 1px solid var(--border); padding: var(--space-1-5);
+    font-family: inherit; font-size: var(--fs-sm); width: 100%; resize: vertical;
   }
   .cf-raw.invalid { border-color: var(--danger-border); }
-  .cf-empty { color: var(--fg-dim, #6ba544); font-style: italic; font-size: 11px; }
+  .cf-empty { color: var(--fg-dim); font-style: italic; font-size: var(--fs-sm); }
 </style>

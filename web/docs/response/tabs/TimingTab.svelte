@@ -45,7 +45,7 @@
     flex-direction: column;
     gap: var(--space-4);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   .bars { display: flex; flex-direction: column; gap: var(--space-2); }
   .row {
@@ -70,5 +70,5 @@
   .bar.kind-response { background: color-mix(in srgb, var(--accent) 85%, var(--fg) 15%); }
   .bar.kind-total    { background: var(--fg-dim); opacity: 0.6; }
   .ms { color: var(--fg); text-align: right; }
-  .bytes { color: var(--fg-dim); font-size: 11px; }
+  .bytes { color: var(--fg-dim); font-size: var(--fs-sm); }
 </style>

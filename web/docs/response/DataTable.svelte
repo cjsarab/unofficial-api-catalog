@@ -364,7 +364,7 @@
   table { border-collapse: collapse; width: 100%; table-layout: auto; }
   th, td {
     border-bottom: 1px solid var(--border);
-    padding: 3px 8px;
+    padding: 3px var(--space-2);
     text-align: left;
     vertical-align: top;
     position: relative;
@@ -397,7 +397,7 @@
     text-align: left;
     display: inline-flex;
     align-items: baseline;
-    gap: 4px;
+    gap: var(--space-1);
   }
   .header-label:disabled { cursor: default; }
   th.sortable .header-label:hover { color: var(--fg); }
@@ -411,8 +411,8 @@
     border: none;
     color: var(--fg-dim);
     cursor: pointer;
-    font-size: 12px;
-    padding: 0 2px;
+    font-size: var(--fs-base);
+    padding: 0 var(--space-0);
     opacity: 0;
   }
   th:hover .menu-btn { opacity: 1; }
@@ -440,9 +440,9 @@
     background: var(--bg-panel);
     color: var(--fg-dim);
     border: 1px solid var(--border);
-    padding: 0 6px;
+    padding: 0 var(--space-1-5);
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .chip:hover { color: var(--accent); border-color: var(--accent); }
   .more {
@@ -451,8 +451,8 @@
     color: var(--fg-dim);
     border: none;
     cursor: pointer;
-    padding: 0 4px;
-    font-size: 11px;
+    padding: 0 var(--space-1);
+    font-size: var(--fs-sm);
   }
   .more:hover { color: var(--accent); }
   .copy-btn {
@@ -461,9 +461,9 @@
     color: var(--fg-dim);
     border: none;
     cursor: pointer;
-    padding: 0 4px;
-    font-size: 11px;
-    margin-left: 4px;
+    padding: 0 var(--space-1);
+    font-size: var(--fs-sm);
+    margin-left: var(--space-1);
     opacity: 0;
     vertical-align: baseline;
   }
@@ -477,11 +477,11 @@
     background: var(--bg-panel);
     border: 1px solid var(--accent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     z-index: 100;
     min-width: 200px;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     text-transform: none;
     letter-spacing: normal;
   }
@@ -494,27 +494,27 @@
     color: var(--fg);
     border: none;
     cursor: pointer;
-    padding: 4px 12px;
-    font-size: 11px;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--fs-sm);
   }
   .menu-item:hover:not(:disabled) { background: var(--bg-raised); color: var(--accent); }
   .menu-item:disabled { color: var(--fg-dim); cursor: default; opacity: 0.6; }
   hr {
     border: none;
     border-top: 1px solid var(--border);
-    margin: 2px 0;
+    margin: var(--space-0) 0;
   }
 
   .empty {
     color: var(--fg-dim);
     padding: var(--space-4);
     text-align: center;
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   .overflow {
     padding: var(--space-2) var(--space-3);
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     background: var(--bg-panel);
     border-top: 1px solid var(--border);
   }
