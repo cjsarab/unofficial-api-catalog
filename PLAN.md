@@ -110,7 +110,9 @@ Physical columns (e.g. `SPRIDEN_ID`, `FA.YEAR`) are a primary user-facing entity
 
 - **Partial catalogs must work.** A user may drop only a subset of product-family folders (e.g. just `BannerBusAPIs/` and `BannerEedmAPIs/`), or even a subset of individual API folders within a family. The index/search/lineage features must degrade gracefully — unresolved lineage edges (e.g. reference to an EEDM resource whose folder isn't present) must not crash the app; they should render as "not installed" rather than broken links. The app is also expected to be robust enough to handle the full catalog.
 
-## Distribution constraints (from user)
+## Distribution constraints — original pre-pivot design (now obsolete)
+
+> **2026-05-01 pivot**: this section is preserved as historical context for the *original* design. The constraints listed here (corporate IT blocks `.exe`s, no per-user install, etc.) drove the zero-install Bun-bundle approach. Post-pivot, distribution is `git clone && npm install && npm run dev` for a small known set of users on machines that already have Node — see the "Pivot 2026-05-01" section near the top of this document. The paragraphs below remain verbatim only as a record of what was originally considered.
 
 - **Windows-only** target for launch (single OS; use DPAPI (`CryptProtectData`) for at-rest secret encryption stored in our own `secrets.json`, `%APPDATA%` for local data, `.bat` launchers, CRLF tolerant).
 - **No per-user installation**. Users can't (or won't) install Node. Users won't pay for signing certs. No self-hosted server option.
