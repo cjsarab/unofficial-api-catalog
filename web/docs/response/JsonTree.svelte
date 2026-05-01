@@ -9,10 +9,13 @@
     name?: string;
     /** Depth in the tree — drives default-expanded state + indent. */
     depth?: number;
-    /** Nodes whose depth >= this value start collapsed. Root passes 2. */
+    /** Nodes whose depth >= this value start collapsed. `Infinity` (the
+     *  default) means everything is open from the start — the user doesn't
+     *  need to click each nested object after a response returns. The 1MB
+     *  body cap in RawTab keeps worst-case DOM size bounded. */
     defaultExpandedMax?: number;
   };
-  let { value, name, depth = 0, defaultExpandedMax = 2 }: Props = $props();
+  let { value, name, depth = 0, defaultExpandedMax = Infinity }: Props = $props();
 
   // Initial expansion state depends only on initial depth; $state initializer runs once.
   // Wrap the props read in `untrack` so Svelte doesn't warn about capturing only the

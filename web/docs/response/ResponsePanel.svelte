@@ -132,7 +132,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
-    max-width: 50ch;
+    max-width: 150ch;
   }
   .banner {
     background: var(--danger-bg);
