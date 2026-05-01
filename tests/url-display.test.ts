@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { decodeQueryValues, pathOnly } from "../web/lib/url-display.ts";
 
 describe("decodeQueryValues", () => {

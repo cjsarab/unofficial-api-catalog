@@ -18,7 +18,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       "/api": {
-        target: process.env.BUN_SERVER ?? "http://localhost:5757",
+        target: process.env.API_SERVER ?? "http://localhost:5757",
         changeOrigin: true,
       },
     },

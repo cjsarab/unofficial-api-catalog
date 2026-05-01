@@ -1,6 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 import { openIndex, getMeta } from "../server/indexer/sqlite.ts";
@@ -13,7 +14,7 @@ import {
   META_LAST_SCAN_ERROR,
 } from "../server/indexer/index.ts";
 
-const FIXTURE_ROOT = join(import.meta.dir, "fixtures", "small-catalog");
+const FIXTURE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "small-catalog");
 
 let dbPath: string;
 

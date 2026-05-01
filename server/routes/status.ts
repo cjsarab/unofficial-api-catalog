@@ -6,7 +6,7 @@ export const handleStatus: RouteHandler = (_req, url) => {
     return Response.json({
       status: "ok",
       version: APP_VERSION,
-      bun: Bun.version,
+      runtime: `node ${process.version}`,
       platform: process.platform,
       dist: HAS_DIST ? "served" : "scaffolding-placeholder",
     });

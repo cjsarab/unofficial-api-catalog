@@ -11,6 +11,8 @@ coverage/
 # User data (never commit)
 APICatalog/
 %APPDATA%/
+/data/*
+!/data/.gitkeep
 *.sqlite
 *.sqlite-*
 *.sqlite3

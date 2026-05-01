@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { formatBytes, formatMs, isJsonContentType } from "./format.ts";
 
 describe("formatBytes", () => {

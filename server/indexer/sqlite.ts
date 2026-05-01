@@ -1,20 +1,87 @@
-import { Database } from "bun:sqlite";
 import { dirname } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
 
 import { INDEX_PATH } from "../config.ts";
 
+// node:sqlite is a Node 22.5+ experimental builtin. Vite 5's known-builtins
+// list doesn't include it (it's the rare builtin that's "only-prefixed" —
+// never appears in `module.builtinModules` without the `node:` prefix), so a
+// static value-import from "node:sqlite" causes Vite/Vitest's transformer to
+// strip the prefix and fail with "Failed to load url sqlite". The type-only
+// import above is erased before runtime; the value is loaded via
+// createRequire() which bypasses Vite's static analysis. Drop both halves
+// once Vite recognises node:sqlite natively.
+const require = createRequire(import.meta.url);
+const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+
 const SCHEMA_VERSION = 1;
+
+// node:sqlite (Node 22.5+, experimental) is the chosen driver after the
+// 2026-05-01 pivot off Bun. We expose a small wrapper so the rest of the
+// codebase can keep using the bun:sqlite-style `db.query<T, A>(sql).get(...)`
+// pattern without 50+ callsite rewrites. The wrapper also supplies a
+// `transaction(fn)` helper since node:sqlite doesn't ship one (unlike
+// bun:sqlite / better-sqlite3).
+
+type SqlArg = string | number | bigint | null | Uint8Array | boolean | undefined;
+
+export interface TypedStatement<T, A extends SqlArg[] = SqlArg[]> {
+  get(...args: A): T | undefined;
+  all(...args: A): T[];
+  run(...args: A): { changes: number; lastInsertRowid: number | bigint };
+}
+
+export interface Database {
+  readonly filename: string;
+  exec(sql: string): void;
+  query<T = unknown, A extends SqlArg[] = SqlArg[]>(sql: string): TypedStatement<T, A>;
+  transaction<F extends (...args: never[]) => unknown>(fn: F): F;
+  close(): void;
+}
+
+function wrap(raw: DatabaseSyncT, filename: string): Database {
+  return {
+    filename,
+    exec: (sql) => raw.exec(sql),
+    query: <T = unknown, A extends SqlArg[] = SqlArg[]>(sql: string) =>
+      raw.prepare(sql) as unknown as TypedStatement<T, A>,
+    transaction: <F extends (...args: never[]) => unknown>(fn: F): F => {
+      const wrapped = ((...args: never[]) => {
+        raw.exec("BEGIN");
+        try {
+          const result = fn(...args);
+          raw.exec("COMMIT");
+          return result;
+        } catch (err) {
+          // Best-effort rollback. If ROLLBACK itself fails (e.g. DB closed
+          // mid-transaction), surface the original error, not the rollback's.
+          try {
+            raw.exec("ROLLBACK");
+          } catch {
+            /* ignored */
+          }
+          throw err;
+        }
+      }) as F;
+      return wrapped;
+    },
+    close: () => raw.close(),
+  };
+}
 
 export function openIndex(path: string = INDEX_PATH): Database {
   const parent = dirname(path);
   if (!existsSync(parent)) mkdirSync(parent, { recursive: true });
 
-  const db = new Database(path, { create: true });
-  db.exec("PRAGMA journal_mode = WAL");
-  db.exec("PRAGMA synchronous = NORMAL");
-  db.exec("PRAGMA foreign_keys = ON");
-  db.exec("PRAGMA temp_store = MEMORY");
+  const raw = new DatabaseSync(path);
+  raw.exec("PRAGMA journal_mode = WAL");
+  raw.exec("PRAGMA synchronous = NORMAL");
+  raw.exec("PRAGMA foreign_keys = ON");
+  raw.exec("PRAGMA temp_store = MEMORY");
+
+  const db = wrap(raw, path);
 
   try {
     migrate(db);
@@ -75,7 +142,7 @@ function migrate(db: Database): void {
     throw new Error(
       `Index DB has schema version ${current} but this binary only knows version ${SCHEMA_VERSION}. ` +
       `It looks like the catalog was indexed by a newer build. Either upgrade the app, or clear the ` +
-      `index from Settings → Catalog (or DELETE %APPDATA%\\api-catalog-explorer\\index.sqlite*) and re-scan.`,
+      `index from Settings → Catalog (or delete data/index.sqlite*) and re-scan.`,
     );
   }
 

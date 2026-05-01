@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { decompose } from "./shape.ts";
 import type { DecomposedTable } from "./types.ts";
 

@@ -1,9 +1,15 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 
 import { openIndex } from "../server/indexer/sqlite.ts";
+
+// node:sqlite via createRequire — see server/indexer/sqlite.ts for the
+// full explanation of why a static import doesn't work under Vite.
+const requireForTest = createRequire(import.meta.url);
+const { DatabaseSync } = requireForTest("node:sqlite") as typeof import("node:sqlite");
 
 const TEST_DIR = join(tmpdir(), "api-catalog-schema-mig-" + Date.now());
 
@@ -74,11 +80,10 @@ describe("migrate", () => {
     expect(() => openIndex(dbPath)).toThrow(/schema version 99/);
 
     // Verify the offending version row wasn't silently overwritten.
-    const { Database } = await import("bun:sqlite");
-    const inspect = new Database(dbPath, { readonly: true });
+    const inspect = new DatabaseSync(dbPath, { readOnly: true });
     const row = inspect
-      .query<{ value: string }, []>(`SELECT value FROM meta WHERE key = 'schema_version'`)
-      .get();
+      .prepare(`SELECT value FROM meta WHERE key = 'schema_version'`)
+      .get() as { value: string } | undefined;
     expect(row?.value).toBe("99");
     inspect.close();
   });

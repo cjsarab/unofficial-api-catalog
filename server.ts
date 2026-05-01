@@ -1,3 +1,5 @@
+import { serve } from "@hono/node-server";
+import { spawn } from "node:child_process";
 import { PORT } from "./server/config.ts";
 import { closeDb } from "./server/db.ts";
 import { dispatch } from "./server/routes/index.ts";
@@ -23,45 +25,42 @@ process.on("uncaughtException", (err) => {
   shutdown("uncaughtException", 1);
 });
 
-let server: ReturnType<typeof Bun.serve>;
-try {
-  server = Bun.serve({
-    port: PORT,
-    fetch: dispatch,
-    // Bun's default idleTimeout is 10s. Ethos criteria queries against
-    // SPRIDEN-scale tables routinely take longer than that — without a
-    // higher cap, the proxy connection is killed mid-flight and the client
-    // sees a Network error instead of the upstream JSON. The full-catalog
-    // SSE indexer scan also takes ~2 minutes, so we need plenty of headroom.
-    // Cap is 255s in Bun (UInt8); use the max so neither path is artificially
-    // throttled.
-    idleTimeout: 255,
-  });
-} catch (err) {
-  const msg = (err as Error).message ?? String(err);
-  if (/EADDRINUSE|in use|EACCES/i.test(msg)) {
+const listeningUrl = `http://localhost:${PORT}`;
+
+const server = serve({ fetch: dispatch, port: PORT }, () => {
+  console.log(`\nAPI Catalog Explorer listening on ${listeningUrl}`);
+  console.log("Press Ctrl+C to stop.\n");
+
+  if (OPEN_BROWSER) {
+    try {
+      const child = spawn(
+        "powershell.exe",
+        ["-NoProfile", "-Command", `Start-Process '${listeningUrl}'`],
+        { stdio: ["ignore", "ignore", "inherit"], detached: true },
+      );
+      child.unref();
+    } catch (err) {
+      console.log(`(could not auto-open browser: ${(err as Error).message})`);
+    }
+  }
+});
+
+// Long Ethos criteria queries can run >30s. Node's default requestTimeout is
+// 5 min and headersTimeout is 1 min — generous enough for our cases. Disabling
+// requestTimeout entirely would be safest for very-long upstreams; leaving the
+// default for now and noting as a knob if a real call ever times out.
+
+server.on("error", (err: NodeJS.ErrnoException) => {
+  const code = err.code ?? "";
+  const msg = err.message ?? String(err);
+  if (code === "EADDRINUSE" || /EADDRINUSE|in use|EACCES/i.test(msg)) {
     console.error(
       `\nCouldn't bind to port ${PORT} — something else is using it.\n` +
         `  • If an older launch is still running, close its console window.\n` +
-        `  • Or set a different port: PORT=5758 launch.bat\n` +
+        `  • Or set a different port: PORT=5758 npm run dev\n` +
         `(Check via: netstat -ano | findstr :${PORT})\n`,
     );
     process.exit(1);
   }
   throw err;
-}
-
-const listeningUrl = `http://localhost:${server.port}`;
-console.log(`\nAPI Catalog Explorer listening on ${listeningUrl}`);
-console.log("Press Ctrl+C to stop.\n");
-
-if (OPEN_BROWSER) {
-  try {
-    Bun.spawn(
-      ["powershell.exe", "-NoProfile", "-Command", `Start-Process '${listeningUrl}'`],
-      { stderr: "inherit" },
-    );
-  } catch (err) {
-    console.log(`(could not auto-open browser: ${(err as Error).message})`);
-  }
-}
+});

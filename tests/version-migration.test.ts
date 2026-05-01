@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { reprojectFormState, type FormState } from "../web/docs/try/version-migration.ts";
 import type { EndpointSchema, OpenAPIParameter } from "../web/lib/openapi.ts";
 

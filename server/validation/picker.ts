@@ -7,7 +7,9 @@
  * System.Windows.Forms.FolderBrowserDialog tree-view.
  */
 
-import { join } from "node:path";
+import { spawn } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface PickerOptions {
   description?: string;
@@ -22,62 +24,64 @@ export interface PickerResult {
   error?: string;
 }
 
-const SCRIPT_PATH = join(import.meta.dir, "pick-folder.ps1");
+const SCRIPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "pick-folder.ps1");
 
 export async function showWindowsFolderPicker(opts: PickerOptions = {}): Promise<PickerResult> {
   const description = opts.description ?? "Select your APICatalog folder";
   const initial = opts.initialPath ?? "";
   const timeoutMs = opts.timeoutMs ?? 5 * 60 * 1000;
 
-  let proc: ReturnType<typeof Bun.spawn>;
-  try {
-    proc = Bun.spawn(
-      [
-        "powershell.exe",
-        "-NoProfile",
-        "-Sta",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        SCRIPT_PATH,
-        "-Title",
-        description,
-        "-InitialPath",
-        initial,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-  } catch (err) {
-    return { error: `could not spawn PowerShell: ${(err as Error).message}` };
-  }
-
-  const timer = setTimeout(() => {
+  return new Promise<PickerResult>((resolveResult) => {
+    let proc: ReturnType<typeof spawn>;
     try {
-      proc.kill();
-    } catch {
-      // already exited
+      proc = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Sta",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          SCRIPT_PATH,
+          "-Title",
+          description,
+          "-InitialPath",
+          initial,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+    } catch (err) {
+      resolveResult({ error: `could not spawn PowerShell: ${(err as Error).message}` });
+      return;
     }
-  }, timeoutMs);
 
-  try {
-    const stdout = proc.stdout as ReadableStream<Uint8Array>;
-    const stderr = proc.stderr as ReadableStream<Uint8Array>;
-    const [stdoutText, stderrText] = await Promise.all([
-      new Response(stdout).text(),
-      new Response(stderr).text(),
-    ]);
-    const exit = await proc.exited;
-    clearTimeout(timer);
+    let stdout = "";
+    let stderr = "";
+    proc.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+    proc.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
 
-    if (exit !== 0) {
-      const msg = stderrText.trim() || `PowerShell exited with ${exit}`;
-      return { error: msg };
-    }
+    const timer = setTimeout(() => {
+      try {
+        proc.kill();
+      } catch {
+        // already exited
+      }
+    }, timeoutMs);
 
-    const picked = stdoutText.trim();
-    return picked ? { picked } : { cancelled: true };
-  } catch (err) {
-    clearTimeout(timer);
-    return { error: (err as Error).message };
-  }
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      resolveResult({ error: err.message });
+    });
+
+    proc.on("close", (exit) => {
+      clearTimeout(timer);
+      if (exit !== 0) {
+        const msg = stderr.trim() || `PowerShell exited with ${exit}`;
+        resolveResult({ error: msg });
+        return;
+      }
+      const picked = stdout.trim();
+      resolveResult(picked ? { picked } : { cancelled: true });
+    });
+  });
 }

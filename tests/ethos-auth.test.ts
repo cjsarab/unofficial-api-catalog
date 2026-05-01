@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { serve } from "@hono/node-server";
+import type { AddressInfo } from "node:net";
 
 import { createSecretStore } from "../server/auth/secrets.ts";
 import { createEnvironmentStore } from "../server/environments/store.ts";
@@ -19,9 +21,9 @@ function startFixture(expectedKey: string) {
   let callCount = 0;
   let currentResponse: { status: number; body: string } = { status: 200, body: SAMPLE_JWT };
 
-  const server = Bun.serve({
+  const server = serve({
     port: 0,
-    async fetch(req) {
+    fetch: async (req) => {
       const url = new URL(req.url);
       if (url.pathname === "/auth" && req.method === "POST") {
         callCount++;
@@ -38,11 +40,14 @@ function startFixture(expectedKey: string) {
     },
   });
 
+  const addr = server.address() as AddressInfo;
   return {
-    baseUrl: `http://localhost:${server.port}`,
+    baseUrl: `http://localhost:${addr.port}`,
     get callCount() { return callCount; },
     setResponse(r: { status: number; body: string }) { currentResponse = r; },
-    stop() { server.stop(true); },
+    stop() {
+      return new Promise<void>((res) => server.close(() => res()));
+    },
   };
 }
 
@@ -61,8 +66,8 @@ describe("ethos auth token cache", () => {
     fixture = startFixture(API_KEY);
   });
 
-  afterEach(() => {
-    fixture.stop();
+  afterEach(async () => {
+    await fixture.stop();
     rmSync(dir, { recursive: true, force: true });
   });
 

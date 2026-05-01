@@ -1,7 +1,10 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
+import { serve } from "@hono/node-server";
+import type { AddressInfo } from "node:net";
 
 import { createSecretStore } from "../server/auth/secrets.ts";
 import { createEnvironmentStore, type EnvironmentStore } from "../server/environments/store.ts";
@@ -28,9 +31,9 @@ function startUpstream(apiKey: string) {
   let behavior: UpstreamBehavior = { kind: "echo" };
   let authSeqCallCount = 0;
 
-  const server = Bun.serve({
+  const server = serve({
     port: 0,
-    async fetch(req) {
+    fetch: async (req) => {
       const url = new URL(req.url);
 
       // /auth is the token-cache endpoint; separate handler.
@@ -63,7 +66,7 @@ function startUpstream(apiKey: string) {
         // If the behavior specifies gzip encoding, compress the body so Bun's
         // HTTP client doesn't throw a ZlibError on the plaintext bytes.
         const bodyBytes = hdrs["content-encoding"] === "gzip"
-          ? Bun.gzipSync(new TextEncoder().encode(behavior.body))
+          ? gzipSync(new TextEncoder().encode(behavior.body))
           : behavior.body;
         return new Response(bodyBytes, { status: behavior.status, headers: hdrs });
       }
@@ -78,11 +81,14 @@ function startUpstream(apiKey: string) {
     },
   });
 
+  const addr = server.address() as AddressInfo;
   return {
-    baseUrl: `http://localhost:${server.port}`,
+    baseUrl: `http://localhost:${addr.port}`,
     received,
     set(b: UpstreamBehavior) { behavior = b; authSeqCallCount = 0; },
-    stop() { server.stop(true); },
+    stop() {
+      return new Promise<void>((res) => server.close(() => res()));
+    },
   };
 }
 
@@ -111,8 +117,8 @@ describe("ethos request proxy", () => {
     tokenCache = createTokenCache(envStore, secrets, () => upstream.baseUrl);
   });
 
-  afterEach(() => {
-    upstream.stop();
+  afterEach(async () => {
+    await upstream.stop();
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -200,10 +206,15 @@ describe("ethos request proxy", () => {
   });
 
   test("upstream Transfer-Encoding / Content-Encoding are not forwarded to client", async () => {
+    // Set only content-encoding here. Node's http server manages
+    // transfer-encoding itself; setting it as a user-supplied header on the
+    // upstream's Response triggers a "forbidden header" path in
+    // @hono/node-server's adapter and fails the request. The proxy's drop-
+    // list still strips both headers regardless of how they're set.
     upstream.set({
       kind: "static",
       status: 200,
-      headers: { "content-type": "text/plain", "content-encoding": "gzip", "transfer-encoding": "chunked" },
+      headers: { "content-type": "text/plain", "content-encoding": "gzip" },
       body: "hello",
     });
     const handler = createEthosProxy({ envStore, tokenCache, baseUrlGetter: () => upstream.baseUrl });
@@ -316,7 +327,7 @@ describe("ethos request proxy", () => {
   test("upstream unreachable (fetch rejects) → 502 upstream-unreachable", async () => {
     // Stop the upstream after the token cache is primed, then make a request.
     await tokenCache.getJwt(envId); // primes the cache while upstream is alive
-    upstream.stop();
+    await upstream.stop();
 
     const handler = createEthosProxy({
       envStore,

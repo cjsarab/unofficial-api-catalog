@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { scrapeCriteriaFilters, inferRootShapes, type ExtractedFilter } from "../web/lib/criteria-scraper.ts";
 
 describe("criteria scraper", () => {
