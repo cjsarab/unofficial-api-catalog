@@ -11,10 +11,13 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** Default abort timeout for the folder-picker dialog (5 minutes). */
+const DEFAULT_PICKER_TIMEOUT_MS = 5 * 60 * 1000;
+
 export interface PickerOptions {
   description?: string;
   initialPath?: string;
-  /** Abort the dialog after this many milliseconds (defaults to 5 minutes). */
+  /** Abort the dialog after this many milliseconds. Defaults to 5 minutes. */
   timeoutMs?: number;
 }
 
@@ -29,7 +32,7 @@ const SCRIPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "pick-folder.p
 export async function showWindowsFolderPicker(opts: PickerOptions = {}): Promise<PickerResult> {
   const description = opts.description ?? "Select your APICatalog folder";
   const initial = opts.initialPath ?? "";
-  const timeoutMs = opts.timeoutMs ?? 5 * 60 * 1000;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_PICKER_TIMEOUT_MS;
 
   return new Promise<PickerResult>((resolveResult) => {
     let proc: ReturnType<typeof spawn>;

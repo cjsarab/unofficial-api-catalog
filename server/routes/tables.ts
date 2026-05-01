@@ -1,5 +1,6 @@
 import type { RouteHandler } from "./types.ts";
 import { db } from "../db.ts";
+import { errorResponse } from "../lib/http.ts";
 
 // NOTE: route-order matters within this module — the prefix check for
 // /api/tables/:name MUST come before the exact /api/tables check, otherwise
@@ -14,7 +15,7 @@ export const handleTables: RouteHandler = (_req, url) => {
   // stvterm / STVTERM across the catalog.
   if (url.pathname.startsWith("/api/tables/")) {
     const tableName = decodeURIComponent(url.pathname.slice("/api/tables/".length));
-    if (!tableName) return Response.json({ error: "table name required" }, { status: 400 });
+    if (!tableName) return errorResponse("table name required", 400);
     const upper = tableName.toUpperCase();
     const lower = tableName.toLowerCase();
     const prefix = upper + "_%"; // Banner-style membership; SQL LIKE pattern.

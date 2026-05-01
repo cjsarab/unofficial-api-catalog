@@ -1,4 +1,5 @@
 import type { RouteHandler } from "./types.ts";
+import { errorResponse } from "../lib/http.ts";
 import {
   clearCatalogPath,
   pruneRecentPaths,
@@ -31,10 +32,10 @@ export const handleConfig: RouteHandler = async (req, url) => {
   if (url.pathname === "/api/config/catalog-path" && req.method === "POST") {
     const body = (await req.json().catch(() => ({}))) as { path?: string };
     const path = body.path?.trim();
-    if (!path) return Response.json({ error: "path required" }, { status: 400 });
+    if (!path) return errorResponse("path required", 400);
     const validation = await validateCatalogPath(path);
     if (!validation.valid) {
-      return Response.json({ error: "invalid catalog path", validation }, { status: 400 });
+      return errorResponse("invalid catalog path", 400, { validation });
     }
     const updated = await setCatalogPath(path);
     return Response.json({ config: updated, validation });
@@ -48,7 +49,7 @@ export const handleConfig: RouteHandler = async (req, url) => {
   if (url.pathname === "/api/config/region" && req.method === "PUT") {
     const body = (await req.json().catch(() => ({}))) as { region?: string };
     if (!isValidRegion(body.region)) {
-      return Response.json({ error: "region must be one of: us, ca, eu, ap" }, { status: 400 });
+      return errorResponse("region must be one of: us, ca, eu, ap", 400);
     }
     const updated = await setRegion(body.region);
     return Response.json({ config: updated });

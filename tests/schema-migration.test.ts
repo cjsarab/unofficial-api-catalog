@@ -30,7 +30,7 @@ function tableNames(db: ReturnType<typeof openIndex>): Set<string> {
   return new Set(rows.map((r) => r.name));
 }
 
-const CONTENT_TABLES = ["files", "apis", "endpoints", "columns", "lineage_edges", "request_history"];
+const CONTENT_TABLES = ["files", "apis", "endpoints", "columns", "lineage_edges"];
 
 describe("migrate", () => {
   test("creates all content tables on a fresh DB and records schema_version", () => {
@@ -46,7 +46,7 @@ describe("migrate", () => {
     const v = db
       .query<{ value: string }, []>(`SELECT value FROM meta WHERE key = 'schema_version'`)
       .get();
-    expect(v?.value).toBe("1");
+    expect(v?.value).toBe("2");
 
     db.close();
   });

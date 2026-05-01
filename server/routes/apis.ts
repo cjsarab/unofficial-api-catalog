@@ -1,5 +1,6 @@
 import type { RouteHandler } from "./types.ts";
 import { db } from "../db.ts";
+import { errorResponse } from "../lib/http.ts";
 
 // Full detail for one API resource at a specific version (default: newest ga).
 //   GET /api/apis/:family/:resource           → picks the default version
@@ -11,7 +12,7 @@ export const handleApis: RouteHandler = (_req, url) => {
   const rest = url.pathname.slice("/api/apis/".length);
   const parts = rest.split("/").map((s) => decodeURIComponent(s));
   if (parts.length < 2 || !parts[0] || !parts[1]) {
-    return Response.json({ error: "family and resource required" }, { status: 400 });
+    return errorResponse("family and resource required", 400);
   }
   const [family, resource] = parts;
   const versionParam = url.searchParams.get("version") ?? parts[2];
@@ -44,7 +45,7 @@ export const handleApis: RouteHandler = (_req, url) => {
     .all(family!, resource!);
 
   if (versionRows.length === 0) {
-    return Response.json({ error: "resource not found", family, resource }, { status: 404 });
+    return errorResponse("resource not found", 404, { family, resource });
   }
 
   // Pick the active version: explicit param if valid, else newest ga,
