@@ -48,7 +48,6 @@ export type MigrationWarning =
 
 export function reprojectFormState(
   oldState: FormState,
-  _oldSchema: EndpointSchema,
   newSchema: EndpointSchema,
 ): { nextState: FormState; warnings: MigrationWarning[] } {
   const warnings: MigrationWarning[] = [];

@@ -54,11 +54,7 @@
     border: 1px solid var(--border);
     cursor: pointer;
   }
-  /* Half-and-half diagonal split of each theme's bg + fg. */
-  .swatch[data-theme="phosphor"] { background: linear-gradient(45deg, #0d120d 50%, #a9ff68 50%); }
-  .swatch[data-theme="amber"]    { background: linear-gradient(45deg, #150f05 50%, #ffb95c 50%); }
-  .swatch[data-theme="dos"]      { background: linear-gradient(45deg, #00007a 50%, #e6e6e6 50%); }
-  .swatch[data-theme="beige"]    { background: linear-gradient(45deg, #efe8d4 50%, #23201a 50%); }
+  /* swatch backgrounds defined in web/styles/theme-swatches.css */
   .swatch.active {
     outline: 2px solid var(--fg-bright);
     outline-offset: 1px;

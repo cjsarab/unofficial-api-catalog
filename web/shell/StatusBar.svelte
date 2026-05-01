@@ -8,7 +8,7 @@
     families: Array<{ family: string; c: number }>;
   };
 
-  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScanStatus = import("@server/indexer/index.ts").LastScanStatus;
   type LastScan = {
     status: LastScanStatus | null;
     startedAt: number | null;

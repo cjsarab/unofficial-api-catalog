@@ -90,6 +90,7 @@
 
 <style>
   .node {
+    --tree-indent: 14px;
     font-family: var(--font-mono);
     font-size: var(--fs-base);
     line-height: 1.4;
@@ -99,7 +100,7 @@
     background: transparent;
     color: var(--fg-dim);
     border: none;
-    width: 14px;
+    width: var(--tree-indent);
     text-align: center;
     padding: 0;
     cursor: pointer;
@@ -112,15 +113,9 @@
   }
   .close {
     /* Sit the closing brace directly under its opening brace. The opener is
-       rendered after the 14px-wide chevron, so the closer needs the same
-       offset. (The previous `-1ch` margin pushed it to the far left.) */
-    padding-left: 14px;
+       rendered after the chevron, so the closer needs the same offset.
+       (The previous `-1ch` margin pushed it to the far left.) */
+    padding-left: var(--tree-indent);
   }
-  /* tk-* classes come from the global styles in RawTab; re-declare for isolation: */
-  :global(.node .tk-key)    { color: var(--accent); }
-  :global(.node .tk-string) { color: var(--fg); }
-  :global(.node .tk-number) { color: color-mix(in srgb, var(--accent) 60%, var(--fg) 40%); }
-  :global(.node .tk-bool)   { color: color-mix(in srgb, var(--accent) 50%, var(--fg) 50%); }
-  :global(.node .tk-null)   { color: var(--fg-dim); }
-  :global(.node .tk-punct)  { color: var(--fg-dim); }
+  /* tk-* token-colour rules live in web/styles/json-syntax.css */
 </style>

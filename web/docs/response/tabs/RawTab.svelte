@@ -152,14 +152,5 @@
     white-space: normal;
   }
   .text { margin: 0; padding: 0; }
-
-  /* Theme-aware token colours. */
-  :global(.tk-key)    { color: var(--accent); }
-  :global(.tk-string) { color: var(--fg); }
-  :global(.tk-number) { color: color-mix(in srgb, var(--accent) 60%, var(--fg) 40%); }
-  :global(.tk-bool)   { color: color-mix(in srgb, var(--accent) 50%, var(--fg) 50%); }
-  :global(.tk-null)   { color: var(--fg-dim); }
-  :global(.tk-punct)  { color: var(--fg-dim); }
-  :global(.tk-raw)    { color: var(--fg); }
-  :global(.tk-ws)     { white-space: pre; }
+  /* JSON syntax-highlight token colours live in web/styles/json-syntax.css */
 </style>

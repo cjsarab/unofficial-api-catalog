@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { STORAGE_KEYS, getStored, setStored } from "../lib/storage.ts";
+
   type VersionRow = {
     version: string;
     id: number;
@@ -21,8 +23,6 @@
   let error = $state<string | null>(null);
   let expanded = $state(new Set<string>());
   let query = $state("");
-
-  const EXPAND_STORAGE = "acx:family-expanded:v1";
 
   $effect(() => {
     restoreExpansion();
@@ -48,23 +48,11 @@
   }
 
   function restoreExpansion() {
-    try {
-      const saved = localStorage.getItem(EXPAND_STORAGE);
-      if (saved) {
-        const arr = JSON.parse(saved) as string[];
-        expanded = new Set(arr);
-      }
-    } catch {
-      /* ignore */
-    }
+    expanded = new Set(getStored<string[]>(STORAGE_KEYS.familyExpanded, []));
   }
 
   function persistExpansion() {
-    try {
-      localStorage.setItem(EXPAND_STORAGE, JSON.stringify([...expanded]));
-    } catch {
-      /* ignore */
-    }
+    setStored(STORAGE_KEYS.familyExpanded, [...expanded]);
   }
 
   function toggle(family: string) {

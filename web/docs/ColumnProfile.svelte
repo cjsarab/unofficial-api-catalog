@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { splitExpression, prettyFieldPath } from "../lib/lineage.ts";
+
   type ApiRow = {
     api_id: number;
     family: string;
@@ -86,21 +88,7 @@
     );
   });
 
-  // Split expression into text/column/table spans (same pattern as ApiDocsView)
-  const TOKEN_RE = /[A-Z][A-Z0-9]*(?:[._][A-Z0-9]+)+/g;
-  function splitExpr(raw: string, tableNames: Set<string>) {
-    const parts: { kind: "text" | "column" | "table"; text: string }[] = [];
-    let lastIndex = 0;
-    for (const m of raw.matchAll(TOKEN_RE)) {
-      const idx = m.index ?? 0;
-      if (idx > lastIndex) parts.push({ kind: "text", text: raw.slice(lastIndex, idx) });
-      const token = m[0];
-      parts.push({ kind: tableNames.has(token) ? "table" : "column", text: token });
-      lastIndex = idx + token.length;
-    }
-    if (lastIndex < raw.length) parts.push({ kind: "text", text: raw.slice(lastIndex) });
-    return parts;
-  }
+  // splitExpression / prettyFieldPath live in web/lib/lineage.ts.
 
   const tableNames = $derived.by((): Set<string> => {
     if (!data) return new Set();
@@ -111,28 +99,6 @@
   });
 
   const fmt = (n: number) => n.toLocaleString("en-US");
-
-  function prettyFieldPath(raw: string): string {
-    let p = raw;
-    const pathsMatch = p.match(/^paths\.([^.]+)\.(get|post|put|patch|delete|options|head|trace)(\..+)?$/i);
-    if (pathsMatch) {
-      const [, path, method, rest] = pathsMatch;
-      const cleaned = (rest ?? "")
-        .replace(/^\.responses\.\d+\.content\.[^.]+\.schema\./, "response.")
-        .replace(/^\.requestBody\.content\.[^.]+\.schema\./, "body.")
-        .replace(/^\.parameters\.\[(\d+)\]$/, " · param[$1]")
-        .replace(/\.properties\./g, ".")
-        .replace(/\.items\./g, "[].")
-        .replace(/\.oneOf\.\[(\d+)\]\./g, ".variant$1.");
-      return `${method!.toUpperCase()} ${path}${cleaned}`;
-    }
-    p = p.replace(/^components\.schemas\.[^.]+\.?/, "");
-    p = p.replace(/^properties\./, "");
-    p = p.replace(/\.properties\./g, ".");
-    p = p.replace(/\.items\./g, "[].");
-    p = p.replace(/\.oneOf\.\[(\d+)\]\./g, ".variant$1.");
-    return p || "(root)";
-  }
 
   const uniqueFamilies = $derived(
     data ? Array.from(new Set(data.apis.map((a) => a.family))).sort() : [],
@@ -284,7 +250,7 @@
                 <div class="api-detail">
                   <div class="field-path">{prettyFieldPath(r.field_path)}</div>
                   <div class="expr">
-                    {#each splitExpr(r.raw_expression, tableNames) as part}
+                    {#each splitExpression(r.raw_expression, tableNames) as part}
                       {#if part.kind === "column"}
                         <button class="token col-token" onclick={(e) => { e.stopPropagation(); onSelectColumn(part.text); }}>{part.text}</button>
                       {:else if part.kind === "table"}

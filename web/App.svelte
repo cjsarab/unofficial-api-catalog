@@ -14,6 +14,8 @@
   import ResponsePanel from "./docs/response/ResponsePanel.svelte";
   import ResponseEmpty from "./docs/response/ResponseEmpty.svelte";
   import type { ResponseView } from "./docs/response/types.ts";
+  import { STORAGE_KEYS, getStoredString, setStoredString } from "./lib/storage.ts";
+  import { formatBytes } from "./docs/response/format.ts";
 
   type CatalogPathStatus = "ok" | "missing" | "invalid" | "none";
   type Region = "us" | "ca" | "eu" | "ap";
@@ -42,7 +44,7 @@
     errors: string[];
   };
 
-  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScanStatus = import("@server/indexer/index.ts").LastScanStatus;
   type LastScan = {
     status: LastScanStatus | null;
     startedAt: number | null;
@@ -84,7 +86,6 @@
   let activeEnvId = $state<string | null>(null);
 
   let theme = $state<ThemeName>("phosphor");
-  const THEME_STORAGE = "acx:theme:v1";
 
   // ---- routing (backed by browser History API so back/forward works) ---
   type Route =
@@ -282,21 +283,13 @@
   function applyTheme(t: ThemeName) {
     theme = t;
     document.documentElement.setAttribute("data-theme", t);
-    try {
-      localStorage.setItem(THEME_STORAGE, t);
-    } catch {
-      /* ignore */
-    }
+    setStoredString(STORAGE_KEYS.theme, t);
   }
 
   function restoreTheme() {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE);
-      if (saved && ["phosphor", "amber", "dos", "beige"].includes(saved)) {
-        applyTheme(saved as ThemeName);
-      }
-    } catch {
-      /* ignore */
+    const saved = getStoredString(STORAGE_KEYS.theme, "");
+    if (saved && ["phosphor", "amber", "dos", "beige"].includes(saved)) {
+      applyTheme(saved as ThemeName);
     }
   }
 
@@ -578,12 +571,6 @@
 
   // ---- helpers ----------------------------------------------------------
   const fmt = (n: number) => n.toLocaleString("en-US");
-  function fmtBytes(b: number) {
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
-    if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-    return `${(b / 1024 ** 3).toFixed(1)} GB`;
-  }
 </script>
 
 {#if mode === "loading"}
@@ -637,7 +624,7 @@
           <dl class="stats compact">
             <dt>families</dt><dd>{fmt(wizardValidation.familiesFound.length)} of 20 present</dd>
             <dt>specs</dt><dd>{fmt(wizardValidation.yamlCount)} YAML files</dd>
-            <dt>size</dt><dd>{fmtBytes(wizardValidation.totalSizeBytes)}</dd>
+            <dt>size</dt><dd>{formatBytes(wizardValidation.totalSizeBytes)}</dd>
           </dl>
         {:else}
           <h3>Not a valid catalog path</h3>

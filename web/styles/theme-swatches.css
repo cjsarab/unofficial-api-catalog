@@ -1,0 +1,15 @@
+/*
+ * Theme swatch previews — half-and-half diagonal split of each palette's
+ * bg + fg. Hex values are intentionally hardcoded (not theme tokens):
+ * a swatch shows the *destination* palette's look while a different
+ * palette is currently active, so reading `--bg` from the live :root
+ * wouldn't give the right colour.
+ *
+ * Used by both AppearancePanel and TopBar; centralised here so a palette
+ * tweak in theme.css can be reflected in one place.
+ */
+
+.swatch[data-theme="phosphor"] { background: linear-gradient(45deg, #0d120d 50%, #a9ff68 50%); }
+.swatch[data-theme="amber"]    { background: linear-gradient(45deg, #150f05 50%, #ffb95c 50%); }
+.swatch[data-theme="dos"]      { background: linear-gradient(45deg, #00007a 50%, #e6e6e6 50%); }
+.swatch[data-theme="beige"]    { background: linear-gradient(45deg, #efe8d4 50%, #23201a 50%); }

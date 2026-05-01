@@ -75,7 +75,7 @@
         const existingSchema = schemas.get(key);
         const existingState = states.get(key) ?? freshState();
         const { nextState, warnings: ws } = existingSchema
-          ? reprojectFormState(existingState, existingSchema, schema)
+          ? reprojectFormState(existingState, schema)
           : { nextState: existingState, warnings: [] as MigrationWarning[] };
         states.set(key, nextState);
         schemas.set(key, schema);

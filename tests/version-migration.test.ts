@@ -22,7 +22,7 @@ describe("version migration", () => {
     const s1 = schema([{ name: "lastName", in: "query", schema: { type: "string" } }]);
     const s2 = schema([{ name: "lastName", in: "query", schema: { type: "string" } }]);
     const state: FormState = { ...emptyState(), queryParams: { lastName: "Abbot" } };
-    const { nextState, warnings } = reprojectFormState(state, s1, s2);
+    const { nextState, warnings } = reprojectFormState(state, s2);
     expect(nextState.queryParams).toEqual({ lastName: "Abbot" });
     expect(warnings).toEqual([]);
   });
@@ -39,7 +39,7 @@ describe("version migration", () => {
       ...emptyState(),
       queryParams: { lastName: "Abbot", lastNamePrefix: "Van" },
     };
-    const { nextState, warnings } = reprojectFormState(state, s1, s2);
+    const { nextState, warnings } = reprojectFormState(state, s2);
     expect(nextState.queryParams).toEqual({ lastName: "Abbot" });
     expect(nextState.orphans?.queryParams).toEqual({ lastNamePrefix: "Van" });
     expect(warnings).toContainEqual(expect.objectContaining({
@@ -52,7 +52,7 @@ describe("version migration", () => {
     const s1 = schema([{ name: "limit", in: "query", schema: { type: "string" } }]);
     const s2 = schema([{ name: "limit", in: "query", schema: { type: "integer" } }]);
     const state: FormState = { ...emptyState(), queryParams: { limit: "10" } };
-    const { nextState, warnings } = reprojectFormState(state, s1, s2);
+    const { nextState, warnings } = reprojectFormState(state, s2);
     expect(nextState.queryParams).toEqual({ limit: "10" });
     expect(warnings).toEqual([]);
   });
@@ -61,7 +61,7 @@ describe("version migration", () => {
     const s1 = schema([{ name: "limit", in: "query", schema: { type: "string" } }]);
     const s2 = schema([{ name: "limit", in: "query", schema: { type: "integer" } }]);
     const state: FormState = { ...emptyState(), queryParams: { limit: "not-a-number" } };
-    const { nextState, warnings } = reprojectFormState(state, s1, s2);
+    const { nextState, warnings } = reprojectFormState(state, s2);
     expect(nextState.queryParams.limit).toBe("not-a-number");
     expect(warnings).toContainEqual(expect.objectContaining({
       kind: "coercion-failed",
@@ -73,7 +73,7 @@ describe("version migration", () => {
     const s1 = schema([{ name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` }]);
     const s2 = schema([{ name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"roles":[{"role":"Y"}]}` }]);
     const state: FormState = { ...emptyState(), criteria: { criteria: { names: { firstName: "James" } } } };
-    const { nextState, warnings } = reprojectFormState(state, s1, s2);
+    const { nextState, warnings } = reprojectFormState(state, s2);
     expect(nextState.criteria).toEqual({ criteria: { names: { firstName: "James" } } });
     expect(warnings).toContainEqual(expect.objectContaining({
       kind: "criteria-undocumented",
@@ -99,7 +99,7 @@ describe("version migration", () => {
         personFilter: { personFilter: { personFilter: "abc-123" } },
       },
     };
-    const { nextState } = reprojectFormState(state, s1, s2);
+    const { nextState } = reprojectFormState(state, s2);
     expect(nextState.criteria.criteria).toEqual({ names: { firstName: "James" } });
     expect(nextState.criteria.personFilter).toEqual({ personFilter: { personFilter: "abc-123" } });
   });
@@ -112,7 +112,7 @@ describe("version migration", () => {
       criteria: { sort: { asc: { asc: "lastName" } } },
       criteriaRaw: { sort: '{"asc": "lastName"}' },
     };
-    const { nextState } = reprojectFormState(state, s1, s2);
+    const { nextState } = reprojectFormState(state, s2);
     expect(nextState.criteriaRaw?.sort).toBe('{"asc": "lastName"}');
   });
 
@@ -131,7 +131,7 @@ describe("version migration", () => {
         personFilter: { personFilter: { personFilter: "abc-123" } },
       },
     };
-    const { nextState } = reprojectFormState(state, s1, s2);
+    const { nextState } = reprojectFormState(state, s2);
     expect(nextState.criteria.criteria).toEqual({ names: { firstName: "James" } });
     expect(nextState.criteria.personFilter).toBeUndefined();
     expect(nextState.orphans?.criteria?.personFilter).toEqual({ personFilter: { personFilter: "abc-123" } });
@@ -141,7 +141,7 @@ describe("version migration", () => {
     const s1 = schema([], { requestBody: { content: { "application/json": { schema: { type: "object" } } } } });
     const s2 = schema([], { requestBody: { content: { "application/json": { schema: { type: "object", properties: { id: { type: "string" } } } } } } });
     const state: FormState = { ...emptyState(), body: { mode: "raw", text: `{"oldField":"x"}` } };
-    const { nextState } = reprojectFormState(state, s1, s2);
+    const { nextState } = reprojectFormState(state, s2);
     expect(nextState.body).toEqual({ mode: "raw", text: `{"oldField":"x"}` });
   });
 
@@ -152,7 +152,7 @@ describe("version migration", () => {
       headers: [{ name: "Accept", value: "application/vnd.hedtech.integration.v11+json" }],
       headersOverridden: { Accept: true },
     };
-    const { nextState } = reprojectFormState(state, s1, s2);
+    const { nextState } = reprojectFormState(state, s2);
     expect(nextState.headers).toEqual([{ name: "Accept", value: "application/vnd.hedtech.integration.v11+json" }]);
     expect(nextState.headersOverridden).toEqual({ Accept: true });
   });

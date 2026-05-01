@@ -12,7 +12,7 @@
   type TopColumn = { column_name: string; api_count: number; total_occurrences: number };
   type TopTable = { table: string; api_count: number };
 
-  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScanStatus = import("@server/indexer/index.ts").LastScanStatus;
   type LastScan = {
     status: LastScanStatus | null;
     startedAt: number | null;

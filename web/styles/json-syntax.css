@@ -1,0 +1,17 @@
+/*
+ * JSON syntax-highlight token classes.
+ *
+ * Used by RawTab's tokenize() output and by JsonTree's hand-rolled spans.
+ * Must be global because Svelte component scoping won't otherwise reach
+ * spans rendered by either component's templating. Centralised here so a
+ * theme tweak lands once, not twice.
+ */
+
+.tk-key    { color: var(--accent); }
+.tk-string { color: var(--fg); }
+.tk-number { color: color-mix(in srgb, var(--accent) 60%, var(--fg) 40%); }
+.tk-bool   { color: color-mix(in srgb, var(--accent) 50%, var(--fg) 50%); }
+.tk-null   { color: var(--fg-dim); }
+.tk-punct  { color: var(--fg-dim); }
+.tk-raw    { color: var(--fg); }
+.tk-ws     { white-space: pre; }

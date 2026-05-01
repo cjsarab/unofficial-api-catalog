@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { splitExpression, prettyFieldPath } from "../lib/lineage.ts";
+
   type Version = { version: string; releaseStatus: string | null; isActive: boolean };
   type Endpoint = {
     id: number;
@@ -98,53 +100,8 @@
     }
   }
 
-  // Prettify raw YAML paths into something readable.
-  //   components.schemas.schema-persons.json.properties.addresses.items.properties.id
-  //     → addresses[].id
-  //   paths./api/persons.get.parameters.[12]
-  //     → GET /api/persons · param[12]
-  function prettyFieldPath(raw: string): string {
-    let p = raw;
-
-    // paths.<path>.<method>... → rewrite the prefix
-    const pathsMatch = p.match(/^paths\.([^.]+)\.(get|post|put|patch|delete|options|head|trace)(\..+)?$/i);
-    if (pathsMatch) {
-      const [, path, method, rest] = pathsMatch;
-      const cleaned = (rest ?? "")
-        .replace(/^\.responses\.\d+\.content\.[^.]+\.schema\./, "response.")
-        .replace(/^\.requestBody\.content\.[^.]+\.schema\./, "body.")
-        .replace(/^\.parameters\.\[(\d+)\]$/, " · param[$1]")
-        .replace(/\.properties\./g, ".")
-        .replace(/\.items\./g, "[].")
-        .replace(/\.oneOf\.\[(\d+)\]\./g, ".variant$1.");
-      return `${method!.toUpperCase()} ${path}${cleaned}`;
-    }
-
-    // components.schemas.<name>.[properties.]...
-    p = p.replace(/^components\.schemas\.[^.]+\.?/, "");
-    p = p.replace(/^properties\./, "");
-    p = p.replace(/\.properties\./g, ".");
-    p = p.replace(/\.items\./g, "[].");
-    p = p.replace(/\.oneOf\.\[(\d+)\]\./g, ".variant$1.");
-    return p || "(root)";
-  }
-
-  // Split an expression like "SPRIDEN_ID(SPRIDEN) where SPBPERS_PIDM = SPRIDEN_PIDM"
-  // into an interleaved array of text + clickable column/table tokens.
-  const TOKEN_RE = /[A-Z][A-Z0-9]*(?:[._][A-Z0-9]+)+/g;
-  function splitExpression(raw: string, tableNames: Set<string>) {
-    const parts: Array<{ kind: "text" | "column" | "table"; text: string }> = [];
-    let lastIndex = 0;
-    for (const m of raw.matchAll(TOKEN_RE)) {
-      const idx = m.index ?? 0;
-      if (idx > lastIndex) parts.push({ kind: "text", text: raw.slice(lastIndex, idx) });
-      const token = m[0];
-      parts.push({ kind: tableNames.has(token) ? "table" : "column", text: token });
-      lastIndex = idx + token.length;
-    }
-    if (lastIndex < raw.length) parts.push({ kind: "text", text: raw.slice(lastIndex) });
-    return parts;
-  }
+  // splitExpression / prettyFieldPath live in web/lib/lineage.ts (shared
+  // with ColumnProfile, TableProfile).
 
   // Collect all distinct table names across fields so splitExpression can classify them.
   const tableSet = $derived.by((): Set<string> => {
