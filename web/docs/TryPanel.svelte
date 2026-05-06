@@ -40,7 +40,7 @@
   function freshState(): FormState {
     return {
       pathParams: {}, queryParams: {}, criteria: {}, criteriaRaw: {},
-      headers: [], body: { mode: "raw", text: "" }, headersOverridden: {},
+      headers: [], body: { mode: "form", text: "" }, headersOverridden: {},
     };
   }
 
@@ -95,6 +95,16 @@
 
   // Tab state.
   let tab = $state<"params" | "headers" | "body">("params");
+
+  // Form-mode body value derived from the canonical text. Keeps the round-trip
+  // lossless: edits in form mode flow back as JSON.stringify into text, and
+  // form-mode reads parse text again. Invalid JSON degrades to undefined so
+  // SchemaInput just shows empty fields rather than crashing.
+  const bodyFormValue = $derived.by<unknown>(() => {
+    if (!state.body.text.trim()) return undefined;
+    try { return JSON.parse(state.body.text) as unknown; }
+    catch { return undefined; }
+  });
 
   // Computed URL
   const computedUrl = $derived.by<string>(() => {
@@ -456,7 +466,7 @@
           onModeChange={(m) => persist({ ...state, body: { ...state.body, mode: m } })}
           text={state.body.text}
           onTextChange={(t) => persist({ ...state, body: { ...state.body, text: t } })}
-          formValue={undefined}
+          formValue={bodyFormValue}
           onFormValueChange={(v) => persist({ ...state, body: { ...state.body, text: JSON.stringify(v, null, 2) } })}
         />
       {/if}

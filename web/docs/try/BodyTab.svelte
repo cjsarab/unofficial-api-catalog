@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { OpenAPIRequestBody, OpenAPISchema } from "../../lib/openapi.ts";
+  import { isJsonContentType } from "../response/format.ts";
   import SchemaInput from "./SchemaInput.svelte";
 
   type Props = {
@@ -19,12 +20,29 @@
   }: Props = $props();
 
   const noBody = $derived(["GET", "HEAD", "DELETE"].includes(method.toUpperCase()));
-  const schema = $derived<OpenAPISchema | undefined>(requestBody?.content?.["application/json"]?.schema);
+  // Pick the first JSON-like media type. Ellucian uses vendor variants like
+  // `application/vnd.hedtech.integration.v1.0.0+json`, so a literal
+  // `application/json` lookup misses every Bus/EEDM PUT/POST.
+  const jsonEntry = $derived.by(() => {
+    const content = requestBody?.content;
+    if (!content) return undefined;
+    const ct = Object.keys(content).find(isJsonContentType);
+    return ct ? content[ct] : undefined;
+  });
+  const schema = $derived<OpenAPISchema | undefined>(jsonEntry?.schema);
+  const example = $derived<unknown>(jsonEntry?.example ?? jsonEntry?.schema?.example);
+  const prefillLabel = $derived<string | null>(
+    example !== undefined ? "↓ Insert example" : schema ? "↓ Insert skeleton" : null,
+  );
 
-  function prefillSkeleton() {
-    if (!schema) { onTextChange("{}"); return; }
-    const skel = buildSkeleton(schema);
-    onTextChange(JSON.stringify(skel, null, 2));
+  function prefill() {
+    if (example !== undefined) {
+      onTextChange(JSON.stringify(example, null, 2));
+      return;
+    }
+    if (schema) {
+      onTextChange(JSON.stringify(buildSkeleton(schema), null, 2));
+    }
   }
 
   function buildSkeleton(s: OpenAPISchema): unknown {
@@ -59,8 +77,8 @@
       <button class="bt-mode" class:active={mode === "form"} onclick={() => onModeChange("form")}>Form</button>
       <button class="bt-mode" class:active={mode === "raw"} onclick={() => onModeChange("raw")}>Raw JSON</button>
     </div>
-    {#if mode === "raw"}
-      <button class="bt-prefill" onclick={prefillSkeleton} disabled={!schema}>↓ Prefill from schema</button>
+    {#if mode === "raw" && prefillLabel}
+      <button class="bt-prefill" onclick={prefill}>{prefillLabel}</button>
     {/if}
   </div>
 
