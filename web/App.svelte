@@ -94,7 +94,7 @@
     | { kind: "column"; name: string }
     | { kind: "table"; name: string };
 
-  type SettingsSection = "environments" | "appearance" | "catalog";
+  type SettingsSection = "environments" | "catalog";
 
   let route = $state<Route>({ kind: "overview" });
   let focusedEndpoint = $state<{ method: string; path: string } | null>(null);
@@ -127,9 +127,10 @@
     const segs = pathname.split("/").filter(Boolean).map(decodeURIComponent);
     if (segs[0] !== "settings") return null;
     const section = segs[1] ?? "environments";
-    if (section === "environments" || section === "appearance" || section === "catalog") {
+    if (section === "environments" || section === "catalog") {
       return section;
     }
+    // Legacy /settings/appearance URLs (and anything else) fall back to env.
     return "environments";
   }
 
@@ -824,9 +825,8 @@
             activeEnvId = nextActiveId;
           }}
           onClose={closeSettings}
-          theme={theme}
-          onthemechange={applyTheme}
           catalogPath={config?.catalogPath}
+          onCatalogRefresh={loadAll}
           onsectionchange={(s) => (settingsSection = s)}
           region={config?.region ?? "us"}
           onregionchange={setRegion}
