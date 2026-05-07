@@ -6,7 +6,10 @@ const projectRoot = resolve(import.meta.dirname);
 
 export default defineConfig({
   root: resolve(projectRoot, "web"),
-  plugins: [svelte()],
+  // plugin-svelte 6+ resolves configFile relative to vite's root (web/), so
+  // hand it the absolute path to the project-root svelte.config.js to avoid
+  // the "no Svelte config found" warning + silent fallback to defaults.
+  plugins: [svelte({ configFile: resolve(projectRoot, "svelte.config.js") })],
   build: {
     outDir: resolve(projectRoot, "dist"),
     emptyOutDir: true,
