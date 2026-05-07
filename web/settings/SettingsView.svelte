@@ -7,7 +7,6 @@
     id: string;
     name: string;
     production: boolean;
-    defaultHeaders: Record<string, string>;
     hasApiKey: boolean;
   };
   type ThemeName = "phosphor" | "amber" | "dos" | "beige";

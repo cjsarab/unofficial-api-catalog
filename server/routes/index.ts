@@ -2,6 +2,7 @@ import { handleApis } from "./apis.ts";
 import { handleCatalog } from "./catalog.ts";
 import { handleColumns } from "./columns.ts";
 import { handleConfig } from "./config.ts";
+import { handleEndpoint } from "./endpoint.ts";
 import { handleEnvironments } from "./environments.ts";
 import { handleFamilies } from "./families.ts";
 import { handleIndexer } from "./indexer.ts";
@@ -11,6 +12,7 @@ import { handleStatic } from "./static.ts";
 import { handleStatus } from "./status.ts";
 import { handleTables } from "./tables.ts";
 import type { RouteHandler } from "./types.ts";
+import { handleEthosProxy } from "../proxy/ethos.ts";
 
 // Each module owns a non-overlapping URL prefix; the dispatcher returns the
 // first non-undefined response. Order is mostly cosmetic, but cheap exact-path
@@ -19,10 +21,12 @@ const apiHandlers: RouteHandler[] = [
   handleStatus,
   handleConfig,
   handleEnvironments,
+  handleEthosProxy,
   handleCatalog,
   handleIndexer,
   handleSearch,
   handleColumns,
+  handleEndpoint,
   handleApis,
   handleFamilies,
   handleTables,

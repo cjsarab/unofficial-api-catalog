@@ -6,10 +6,14 @@
   import CatalogOverview from "./shell/CatalogOverview.svelte";
   import Sidebar from "./sidebar/Sidebar.svelte";
   import ApiDocsView from "./docs/ApiDocsView.svelte";
+  import TryPanel from "./docs/TryPanel.svelte";
   import ColumnProfile from "./docs/ColumnProfile.svelte";
   import TableProfile from "./docs/TableProfile.svelte";
   import CommandPalette from "./shell/CommandPalette.svelte";
   import SettingsView from "./settings/SettingsView.svelte";
+  import ResponsePanel from "./docs/response/ResponsePanel.svelte";
+  import ResponseEmpty from "./docs/response/ResponseEmpty.svelte";
+  import type { ResponseView } from "./docs/response/types.ts";
 
   type CatalogPathStatus = "ok" | "missing" | "invalid" | "none";
   type Region = "us" | "ca" | "eu" | "ap";
@@ -55,7 +59,6 @@
     id: string;
     name: string;
     production: boolean;
-    defaultHeaders: Record<string, string>;
     hasApiKey: boolean;
   };
 
@@ -75,10 +78,18 @@
     | { kind: "overview" }
     | { kind: "api"; family: string; resource: string; version?: string }
     | { kind: "column"; name: string }
-    | { kind: "table"; name: string }
-    | { kind: "settings"; section: "environments" | "appearance" | "catalog" };
+    | { kind: "table"; name: string };
+
+  type SettingsSection = "environments" | "appearance" | "catalog";
 
   let route = $state<Route>({ kind: "overview" });
+  let focusedEndpoint = $state<{ method: string; path: string } | null>(null);
+  let currentResponse = $state<ResponseView | null>(null);
+  let isSending = $state(false);
+  // Settings is a modal over the current route, not a route of its own — so
+  // closing it returns the user to whatever they were doing.
+  let settingsOpen = $state(false);
+  let settingsSection = $state<SettingsSection>("environments");
 
   function routeToPath(r: Route): string {
     switch (r.kind) {
@@ -92,9 +103,20 @@
         return `/columns/${encodeURIComponent(r.name)}`;
       case "table":
         return `/tables/${encodeURIComponent(r.name)}`;
-      case "settings":
-        return `/settings/${r.section}`;
     }
+  }
+
+  // Legacy /settings/<section> URLs: pop the modal open on top of overview
+  // instead of being a real destination. Returns the settings section if the
+  // URL looked like a settings deep-link, so the caller can normalise the URL.
+  function consumeSettingsPath(pathname: string): SettingsSection | null {
+    const segs = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    if (segs[0] !== "settings") return null;
+    const section = segs[1] ?? "environments";
+    if (section === "environments" || section === "appearance" || section === "catalog") {
+      return section;
+    }
+    return "environments";
   }
 
   function pathToRoute(pathname: string): Route {
@@ -106,13 +128,6 @@
     }
     if (head === "columns" && rest.length >= 1) return { kind: "column", name: rest[0]! };
     if (head === "tables" && rest.length >= 1) return { kind: "table", name: rest[0]! };
-    if (head === "settings") {
-      // Bare /settings redirects to /settings/environments (the default section).
-      const section = rest[0] ?? "environments";
-      if (section === "environments" || section === "appearance" || section === "catalog") {
-        return { kind: "settings", section };
-      }
-    }
     return { kind: "overview" };
   }
 
@@ -141,8 +156,12 @@
   function goOverview() {
     navigate({ kind: "overview" });
   }
-  function goSettings() {
-    navigate({ kind: "settings", section: "environments" });
+  function openSettings(section: SettingsSection = "environments") {
+    settingsSection = section;
+    settingsOpen = true;
+  }
+  function closeSettings() {
+    settingsOpen = false;
   }
   function changeVersion(v: string) {
     if (route.kind === "api") {
@@ -183,7 +202,48 @@
     envs && activeEnvId ? (envs.find((e) => e.id === activeEnvId)?.name ?? "(none)") : "(none)",
   );
   const activeEnv = $derived(envs && activeEnvId ? (envs.find((e) => e.id === activeEnvId) ?? null) : null);
-  void activeEnv;
+
+  const focusedSlug = $derived.by(() => {
+    if (!focusedEndpoint) return null;
+    return focusedEndpoint.method + "-" + focusedEndpoint.path.replace(/^\//, "").replace(/\//g, "-").replace(/[{}]/g, "");
+  });
+
+  function writeFragment(ep: { method: string; path: string } | null) {
+    if (!ep) { history.replaceState(null, "", location.pathname + location.search); return; }
+    const slug = ep.method + "-" + ep.path.replace(/^\//, "").replace(/\//g, "-").replace(/[{}]/g, "");
+    history.replaceState(null, "", location.pathname + location.search + "#endpoint=" + slug);
+  }
+
+  function readFragment(): { method: string; path: string } | null {
+    const hash = location.hash;
+    const m = hash.match(/#endpoint=([A-Za-z]+)-(.+)$/);
+    if (!m) return null;
+    const method = m[1]!.toUpperCase();
+    return { method, path: "/" + m[2]!.replace(/-/g, "/") };
+  }
+
+  function focusEndpoint(ep: { method: string; path: string }) {
+    focusedEndpoint = ep;
+    writeFragment(ep);
+  }
+
+  // Clear focus when leaving an API route.
+  $effect(() => {
+    if (route.kind !== "api") {
+      if (focusedEndpoint !== null) {
+        focusedEndpoint = null;
+        writeFragment(null);
+      }
+    }
+  });
+
+  // Re-read fragment when route arrives at an API detail view.
+  $effect(() => {
+    if (route.kind === "api" && !focusedEndpoint) {
+      const fromHash = readFragment();
+      if (fromHash) focusedEndpoint = fromHash;
+    }
+  });
 
   let mode = $derived.by((): "loading" | "wizard" | "app" => {
     if (!config) return "loading";
@@ -218,10 +278,17 @@
   // ---- lifecycle --------------------------------------------------------
   $effect(() => {
     restoreTheme();
-    // Restore the route from the current URL on first paint (handles the case
-    // where the user refreshes a column profile or bookmarks a specific API).
-    const initial = pathToRoute(window.location.pathname);
-    navigate(initial, true);
+    // Restore the route from the current URL on first paint. If the URL is a
+    // legacy /settings/... deep link, pop the modal open over the overview
+    // rather than navigating into a standalone settings screen.
+    const section = consumeSettingsPath(window.location.pathname);
+    if (section) {
+      navigate({ kind: "overview" }, true);
+      openSettings(section);
+    } else {
+      const initial = pathToRoute(window.location.pathname);
+      navigate(initial, true);
+    }
     window.addEventListener("popstate", onPopState);
     window.addEventListener("keydown", onGlobalKey);
     loadAll();
@@ -437,6 +504,10 @@
       e.preventDefault();
       paletteOpen = !paletteOpen;
     }
+    if (e.key === "Escape" && settingsOpen) {
+      e.preventDefault();
+      closeSettings();
+    }
   }
 
   // ---- helpers ----------------------------------------------------------
@@ -583,7 +654,7 @@
           const res = await fetch(`/api/environments/${encodeURIComponent(id)}/activate`, { method: "POST" });
           if (res.ok) activeEnvId = id;
         }}
-        onopensettings={goSettings}
+        onopensettings={() => openSettings()}
         openCommandPalette={openCommandPalette}
       />
     {/snippet}
@@ -609,6 +680,8 @@
           onSelectColumn={selectColumn}
           onSelectTable={selectTable}
           onVersionChange={changeVersion}
+          {focusedSlug}
+          onfocusendpoint={focusEndpoint}
         />
       {:else if route.kind === "column"}
         <ColumnProfile
@@ -623,38 +696,38 @@
           onSelectColumn={selectColumn}
           onSelectApi={selectApi}
         />
-      {:else if route.kind === "settings"}
-        <SettingsView
-          section={route.section}
-          envs={envs ?? []}
-          activeEnvId={activeEnvId}
-          onChange={(nextEnvs, nextActiveId) => {
-            envs = nextEnvs;
-            activeEnvId = nextActiveId;
-          }}
-          onClose={goOverview}
-          theme={theme}
-          onthemechange={applyTheme}
-          catalogPath={config?.catalogPath}
-          onsectionchange={(s) => navigate({ kind: "settings", section: s })}
-          region={config?.region ?? "us"}
-          onregionchange={setRegion}
-        />
       {/if}
     {/snippet}
     {#snippet right()}
-      <PanePlaceholder
-        title="Try API"
-        description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
-        taskNumber={15}
-      />
+      {#if route.kind === "api"}
+        <TryPanel
+          family={route.family}
+          resource={route.resource}
+          version={route.version ?? ""}
+          focused={focusedEndpoint}
+          activeEnv={activeEnv}
+          region={config?.region ?? "us"}
+          onSend={(view) => { currentResponse = view; isSending = false; }}
+          onAbort={() => { isSending = false; /* previous view stays visible until the new one lands */ }}
+        />
+      {:else}
+        <PanePlaceholder
+          title="Try API"
+          description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
+          taskNumber={15}
+        />
+      {/if}
     {/snippet}
     {#snippet response()}
-      <PanePlaceholder
-        title="Response"
-        description="Raw · table · headers · timing tabs. Appears here after you send a request. Ctrl+\\ to collapse."
-        taskNumber={15}
-      />
+      {#if currentResponse}
+        <ResponsePanel
+          {...currentResponse}
+          sending={isSending}
+          onclear={() => (currentResponse = null)}
+        />
+      {:else}
+        <ResponseEmpty />
+      {/if}
     {/snippet}
     {#snippet statusBar()}
       <StatusBar summary={summary} catalogPath={config?.catalogPath} env={activeEnvName} lastResponse={null} />
@@ -668,6 +741,31 @@
     onSelectColumn={selectColumn}
     onSelectTable={selectTable}
   />
+
+  {#if settingsOpen}
+    <!-- Settings modal: overlays the current route so closing returns the
+         user to wherever they were. Click-outside and Escape both close. -->
+    <div class="settings-backdrop" onclick={closeSettings} role="presentation">
+      <div class="settings-dialog" role="dialog" aria-modal="true" aria-label="Settings" onclick={(e) => e.stopPropagation()}>
+        <SettingsView
+          section={settingsSection}
+          envs={envs ?? []}
+          activeEnvId={activeEnvId}
+          onChange={(nextEnvs, nextActiveId) => {
+            envs = nextEnvs;
+            activeEnvId = nextActiveId;
+          }}
+          onClose={closeSettings}
+          theme={theme}
+          onthemechange={applyTheme}
+          catalogPath={config?.catalogPath}
+          onsectionchange={(s) => (settingsSection = s)}
+          region={config?.region ?? "us"}
+          onregionchange={setRegion}
+        />
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -837,6 +935,24 @@
   }
   p.notice strong { color: var(--warn); }
   p.notice code { color: var(--fg); }
+
+  .settings-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: grid;
+    place-items: center;
+    z-index: 90;
+    padding: 4vh 4vw;
+  }
+  .settings-dialog {
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    width: min(960px, 100%);
+    max-height: 92vh;
+    overflow: auto;
+  }
 
   .route-placeholder {
     padding: var(--space-5) var(--space-6);

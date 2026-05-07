@@ -7,7 +7,6 @@ export interface Environment {
   id: string;
   name: string;
   production: boolean;
-  defaultHeaders: Record<string, string>;
 }
 
 export interface EnvironmentWithStatus extends Environment {
@@ -17,14 +16,12 @@ export interface EnvironmentWithStatus extends Environment {
 export interface CreateEnvironmentInput {
   name: string;
   production: boolean;
-  defaultHeaders: Record<string, string>;
   apiKey: string;
 }
 
 export interface UpdateEnvironmentInput {
   name?: string;
   production?: boolean;
-  defaultHeaders?: Record<string, string>;
   apiKey?: string;
 }
 
@@ -83,7 +80,13 @@ export function createEnvironmentStore(
     // crash between env-list write and later operations), coerce to null rather
     // than letting a dangling reference hide bugs downstream.
     const activeId = activeIdRaw && p.envs.some((e) => e.id === activeIdRaw) ? activeIdRaw : null;
-    cache = { envs: p.envs, activeId };
+    // Strip legacy fields we no longer carry. `defaultHeaders` moved to the
+    // Try panel in Phase 2 item 4; old environments.json files still have it.
+    const sanitized: Environment[] = p.envs.map((entry) => {
+      const e = entry as Environment & { defaultHeaders?: unknown };
+      return { id: e.id, name: e.name, production: e.production };
+    });
+    cache = { envs: sanitized, activeId };
     return cache;
   }
 
@@ -130,7 +133,6 @@ export function createEnvironmentStore(
         id: crypto.randomUUID(),
         name,
         production: input.production,
-        defaultHeaders: input.defaultHeaders,
       };
       s.envs.push(env);
       flush();
@@ -151,7 +153,6 @@ export function createEnvironmentStore(
         env.name = name;
       }
       if (input.production !== undefined) env.production = input.production;
-      if (input.defaultHeaders !== undefined) env.defaultHeaders = input.defaultHeaders;
 
       flush();
 

@@ -3,7 +3,6 @@
     id: string;
     name: string;
     production: boolean;
-    defaultHeaders: Record<string, string>;
     hasApiKey: boolean;
   };
   type Region = "us" | "ca" | "eu" | "ap";
@@ -62,8 +61,6 @@
   let fName = $state("");
   let fProduction = $state(false);
   let fApiKey = $state("");
-  // Default headers as an array of [key, value] pairs for the editor.
-  let fHeaders = $state<Array<{ k: string; v: string }>>([]);
 
   function startAdd() {
     if (editing !== null && !confirm("Discard unsaved changes?")) return;
@@ -71,10 +68,6 @@
     fName = "";
     fProduction = false;
     fApiKey = "";
-    fHeaders = [
-      { k: "Accept", v: "application/json" },
-      { k: "Content-Type", v: "application/json" },
-    ];
     formError = null;
     apiKeyVisible = false;
     apiKeyFetchError = null;
@@ -86,7 +79,6 @@
     fName = env.name;
     fProduction = env.production;
     fApiKey = ""; // blank → leave-unchanged on edit
-    fHeaders = Object.entries(env.defaultHeaders).map(([k, v]) => ({ k, v }));
     formError = null;
     apiKeyVisible = false;
     apiKeyFetchError = null;
@@ -97,18 +89,6 @@
     formError = null;
     apiKeyVisible = false;
     apiKeyFetchError = null;
-  }
-
-  function addHeader() { fHeaders = [...fHeaders, { k: "", v: "" }]; }
-  function removeHeader(i: number) { fHeaders = fHeaders.filter((_, idx) => idx !== i); }
-
-  function headersFromForm(): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const { k, v } of fHeaders) {
-      const key = k.trim();
-      if (key) out[key] = v;
-    }
-    return out;
   }
 
   async function save() {
@@ -122,7 +102,6 @@
           body: JSON.stringify({
             name: fName,
             production: fProduction,
-            defaultHeaders: headersFromForm(),
             apiKey: fApiKey,
           }),
         });
@@ -134,7 +113,6 @@
         const body: Record<string, unknown> = {
           name: fName,
           production: fProduction,
-          defaultHeaders: headersFromForm(),
         };
         if (fApiKey !== "") body.apiKey = fApiKey;
         const res = await fetch(`/api/environments/${encodeURIComponent(id)}`, {
@@ -285,18 +263,6 @@
         {/if}
       </label>
 
-      <div class="headers-editor">
-        <span class="headers-label">Default headers</span>
-        {#each fHeaders as header, i (i)}
-          <div class="header-row">
-            <input type="text" bind:value={header.k} placeholder="header name" />
-            <input type="text" bind:value={header.v} placeholder="value" />
-            <button type="button" onclick={() => removeHeader(i)} aria-label="Remove header">✕</button>
-          </div>
-        {/each}
-        <button type="button" class="btn-link" onclick={addHeader}>+ Add header</button>
-      </div>
-
       {#if formError}
         <p class="form-error">{formError}</p>
       {/if}
@@ -431,12 +397,6 @@
   .form-grid input:focus { outline: 1px solid var(--border-strong); }
   .checkbox-label { flex-direction: row !important; align-items: center; gap: var(--space-2); }
   .muted { color: var(--fg-dim); }
-
-  .headers-editor { display: flex; flex-direction: column; gap: var(--space-2); }
-  .headers-label { color: var(--fg-dim); font-size: 0.9rem; }
-  .header-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: var(--space-2); }
-  .header-row input { background: var(--bg); color: var(--fg); border: 1px solid var(--border); padding: var(--space-1) var(--space-2); font-family: var(--font-mono); }
-  .header-row button { background: transparent; color: var(--fg-dim); border: 1px solid var(--border); cursor: pointer; }
 
   .form-error {
     color: var(--danger);

@@ -1,6 +1,6 @@
 # API Catalog Explorer — Design Plan
 
-> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). Phase 2 (Try APIs for real) is next.
+> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 items 1-5 + 7 shipped** (DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal). Next: item 6 (full Response panel — deferred per brainstorm) or item 8 (request history).
 
 ## Context
 
@@ -241,11 +241,11 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
 ## Try-APIs (locked in)
 
 - **Environment profiles** (tenant-level, shared across all APIs). Stored in `%APPDATA%\api-catalog-explorer\environments.json`; secrets DPAPI-encrypted in a sibling `secrets.json`, never on disk plaintext.
-- **Per-profile fields**: name, production flag, default headers (pre-populated on Add with `Accept: application/json` + `Content-Type: application/json`), Ellucian API key (DPAPI-encrypted in the sibling `secrets.json`). The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests; the request-history logger always redacts bodies regardless of env.
+- **Per-profile fields**: name, production flag, Ellucian API key (DPAPI-encrypted in the sibling `secrets.json`). Per-request headers live on the Try panel — environments carry credentials + connection, not content negotiation. The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests; the request-history logger always redacts bodies regardless of env.
 - **Region is workspace-level, not per-env**: stored in `config.json` as `region: "us" | "ca" | "eu" | "ap"` (US / Canada / Europe / Asia-Pacific). One value for all envs — all tenants a given user works with are in the same region. The base URL and auth URL are derived from region: `https://integrate.elluciancloud.{com|ca|ie|com.au}` and `${baseUrl}/auth` respectively.
 - **Top-bar selector**: one-click switch between profiles. Red dot indicator on production envs.
 - **Auth**:
-  - **Ellucian Ethos Integration auth** — server sends the tenant's API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth` (region resolved from workspace-level `config.json`), receives a plaintext JWT in the response body, caches in RAM for TTL - 60 s, refreshes on 401, proxies calls with `Authorization: Bearer <jwt>` + whatever `Accept` header the env's `defaultHeaders` carry (generic `application/json` by default; the Ethos-specific `application/vnd.hedtech.integration.vN+json` is what you'd put there if you need a pinned version — omitting it gives you latest). API key is required per env; there is no client_id/client_secret pair.
+  - **Ellucian Ethos Integration auth** — server sends the tenant's API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth` (region resolved from workspace-level `config.json`), receives a plaintext JWT in the response body, caches in RAM for TTL - 60 s, refreshes on 401, proxies calls with `Authorization: Bearer <jwt>`. API key is required per env; there is no client_id/client_secret pair.
   - **Test connection** button pings the auth endpoint; reports token acquisition time; does not touch data.
 - **Verb safety**: confirm POST/PUT/PATCH/DELETE only on envs marked `production`. Confirm modal shows method + URL + redacted body + "Copy as curl" + Send/Cancel. Shift+F5 skips the dialog for the current request. Other envs send without prompting; env badges (red/amber/grey) provide the visual cue.
 - **Request history**: every send logged to a SQLite table (timestamp, env, method, path, status, duration, redacted body, full response blob under size cap). Rendered as a third sidebar tab (with family tree + column dict). Click to reload into Try; `↻` to rerun. Filterable and exportable (JSON / curl).
@@ -475,7 +475,7 @@ Ordered by severity. Three HIGH items were fixed this session; the rest are defe
 - ⏭ **Path-traversal `startsWith` check is prefix-based** (MEDIUM, low exploit risk) — `resolved.startsWith(DIST_DIR)` also matches sibling directories like `dist-evil/`. Change to `resolved === DIST_DIR || resolved.startsWith(DIST_DIR + path.sep)`.
 - ⏭ **LIKE `_`/`%` over-matches** (MEDIUM, correctness not security) — user queries `SPRIDEN_ID` match columns like `SPRIDENXID` via the `_` wildcard. Fix: escape `_` and `%` in user input with `ESCAPE '\\'` (already used in `/api/columns/prefix/:name`).
 - ⏭ **`validateCatalogPath` runs full tree walk per call** (MEDIUM, performance) — `/api/config` runs it on every fetch, and the wizard runs it on every 400 ms-debounced keystroke. Two lighter modes: (a) fast-pass (count `*APIs/` dirs via `scandir`, no YAML count) for debounced validation, (b) cache against `(path, root-dir-mtime)`.
-- ⏭ **`server.ts` is 1,200+ lines** (MEDIUM, maintainability) — should split by route group (`server/routes/catalog.ts`, `.../search.ts`, etc.) before Phase 2 adds the Try-API surface. Also makes each handler testable without booting Bun.serve.
+- ✅ **`server.ts` is 1,200+ lines** (MEDIUM, maintainability, fixed) — split into per-route modules under `server/routes/*.ts` (apis / catalog / columns / config / environments / families / indexer / lineage / search / static / status / tables) + `server/routes/index.ts` as the dispatcher. `server.ts` is now ~60 lines (bootstrap + graceful shutdown only).
 - ⏭ **Svelte profile views duplicate helpers** (MEDIUM, maintainability) — `TOKEN_RE`, `splitExpression`, `prettyFieldPath`, several CSS classes. Extract to `web/lib/lineage.ts` and a shared stylesheet.
 - ⏭ **FTS5 triggers in the schema but never queried** (LOW, dead code) — either wire `/api/search` to FTS5 (better fuzzy ranking) or drop the triggers until we need them. Dead triggers cost ~15% write throughput during re-index.
 - ⏭ **Four `acx:…:v1` localStorage keys with no shared migration** (LOW) — centralise in `web/lib/storage.ts` before any v2 schema change.
@@ -485,30 +485,38 @@ Ordered by severity. Three HIGH items were fixed this session; the rest are defe
 
 ### Tests still missing (to add in Phase 2)
 
-The indexer roundtrip is now covered. Still no tests for:
+The indexer roundtrip is now covered. Also now covered (Phase 2 items 1-4):
 
-- HTTP surface: `/api/search` with filter parsing, `/api/apis/:family/:resource` version resolution, `/api/columns/:name` enrichment, `/api/tables/:name` at-a-glance.
-- DPAPI wrapper (not yet implemented — Phase 2 task).
-- End-to-end Playwright smoke: launch → wizard → index → click column → search.
+- ✅ DPAPI wrapper — `tests/secrets.test.ts` covers round-trip (ASCII + unicode), delete, list, plaintext-not-on-disk, persistence, and tampered-ciphertext rejection.
+- ✅ Environment profile store — `tests/environments.test.ts`, 21 tests covering CRUD, active-env persistence, legacy-field stripping on load.
+- ✅ Ethos JWT token cache — `tests/ethos-auth.test.ts`, 7 tests (fetch + cache + invalidate + error paths against in-process Bun.serve fixture).
+- ✅ Request proxy — `tests/ethos-proxy.test.ts`, 17 tests (happy-path + header strip/merge + response shaping + 401 retry + error mapping + onComplete hook).
 
-## Phase 2 — plan for next session
+Still missing:
+
+- HTTP surface for Phase 1 endpoints: `/api/search` with filter parsing, `/api/apis/:family/:resource` version resolution, `/api/columns/:name` enrichment, `/api/tables/:name` at-a-glance.
+- End-to-end Playwright smoke: launch → wizard → index → click column → search → send proxy request.
+
+## Phase 2 — in progress
 
 Goal: real API calls work end-to-end for users whose Ellucian tenant is accessible. Phase 2 is *the* try-APIs crowd.
 
+**Shipped so far (items 1-7):** DPAPI secret storage, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel, verb-safety modal, and (2026-04-24) the full **Response Panel** — four tabs (Raw / Table / Headers / Timing) in the Shell's bottom slot with algorithmic decomposition of JSON into flat peer tables. State lifted from TryPanel to App.svelte with AbortController for cancel-previous. Proxy extended with `X-Proxy-*` response headers (auth / request / response ms, request / response bytes). 180 tests pass (25 new: shape + highlight + format + compare + proxy timings); typecheck clean; smoke-tested against real Ellucian including the QoL sort/resize/hide/copy affordances and the parent-filter nav on count-link chips.
+
 **Must-have:**
 
-1. **Environment profile manager** (Settings → Environments, at `/settings/environments`). CRUD UI backed by `%APPDATA%\api-catalog-explorer\environments.json`; API keys stored DPAPI-encrypted in the sibling `secrets.json` under key `env/<id>/api_key`. Fields per profile: name, production flag, default headers (pre-populated on Add with `Accept`/`Content-Type` = `application/json`), API key. Region is workspace-level (stored in `config.json`) — one dropdown at the top of the Environments panel applies to all envs. The base URL and auth URL are derived from region. Top-bar env selector (with a red dot indicator when the active env is production) switches active env in one click; `activeId` persists across launches. Settings accessed via a gear icon in the top bar or by navigating directly to `/settings/environments`.
-2. **Windows DPAPI secret storage** — two-layer split. `server/auth/dpapi.ts` is a thin `bun:ffi` wrapper around `CryptProtectData` / `CryptUnprotectData` from `crypt32.dll` (no I/O). `server/auth/secrets.ts` is a generic key/value store on top, persisting base64 ciphertexts to `%APPDATA%\api-catalog-explorer\secrets.json` via atomic tmp+rename writes. Entirely in-app — no `CredWrite`, nothing visible in `Manage Windows Credentials`. End-to-end tests in `tests/secrets.test.ts` cover round-trip (ASCII + unicode), delete, list, plaintext-not-on-disk, persistence, and tampered-ciphertext rejection.
-3. **Ellucian API key → JWT exchange** (`server/auth/ethos.ts`) — POST the stored API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth`, receive plaintext JWT, cache in RAM for `TTL - 60s`, refresh on 401. `/api/auth/test` endpoint for the "Test connection" button.
-4. **Request proxy** (`server/proxy/ethos.ts`) — forwards UI requests to `${regionBaseUrl}/<path>` with Bearer + the env's `defaultHeaders` attached. Logs timings, captures response.
-5. **Try panel UI** (`web/docs/TryPanel.svelte`) — schema-driven form (enums → dropdowns, dates → pickers, UUIDs → validators, arrays → chips) with a raw-JSON escape hatch. Path params auto-surfaced. "Send" triggers proxy call.
-6. **Response panel UI** (`web/docs/ResponsePanel.svelte`) — full-width under the three top panes (mockup locked in Phase 0). Tabs: **raw** (syntax-highlighted JSON) / **table** (array → SQL-style grid; big deal for PL/SQL vets) / **headers** / **timing**.
-7. **Verb safety modal** — POST/PUT/PATCH/DELETE against a production-marked env triggers a confirm dialog with body preview + "Copy as curl" + Shift+F5-to-skip.
+1. ✅ **Environment profile manager** (Settings → Environments, at `/settings/environments`). CRUD UI backed by `%APPDATA%\api-catalog-explorer\environments.json`; API keys stored DPAPI-encrypted in the sibling `secrets.json` under key `env/<id>/api_key`. Fields per profile: name, production flag, API key. Region is workspace-level (stored in `config.json`) — one dropdown at the top of the Environments panel applies to all envs. The base URL and auth URL are derived from region. Top-bar env selector (with a red dot indicator when the active env is production) switches active env in one click; `activeId` persists across launches. Settings accessed via a gear icon in the top bar or by navigating directly to `/settings/environments`.
+2. ✅ **Windows DPAPI secret storage** — two-layer split. `server/auth/dpapi.ts` is a thin `bun:ffi` wrapper around `CryptProtectData` / `CryptUnprotectData` from `crypt32.dll` (no I/O). `server/auth/secrets.ts` is a generic key/value store on top, persisting base64 ciphertexts to `%APPDATA%\api-catalog-explorer\secrets.json` via atomic tmp+rename writes. Entirely in-app — no `CredWrite`, nothing visible in `Manage Windows Credentials`. End-to-end tests in `tests/secrets.test.ts` cover round-trip (ASCII + unicode), delete, list, plaintext-not-on-disk, persistence, and tampered-ciphertext rejection.
+3. ✅ **Ellucian API key → JWT exchange** (`server/auth/ethos.ts`) — POST the stored API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth`, receive plaintext JWT, cache in RAM per env for 4 minutes (5-minute server TTL minus 60-second safety margin). `invalidate()` forces refresh on downstream 401. Consumed by the request proxy (item 4) — no HTTP surface of its own. "Test connection" UI deferred.
+4. ✅ **Request proxy** (`server/proxy/ethos.ts`) — `/api/ethos/<path>` forwards UI requests to `${regionBaseUrl}/<path>` with the env's cached Bearer JWT attached. Transparent method/body/header passthrough; 401 triggers a one-shot invalidate + retry. Exposes an `onComplete` hook (no-op here) for Phase 2 item 8 to wire SQLite `request_history` writes into.
+5. ✅ **Try panel UI** (`web/docs/TryPanel.svelte`) — click an endpoint in the docs → form renders. URL bar + tabs (Params / Headers / Body). Schema-driven controls (text / retro dropdown / native date / UUID validator / chips / recursive nested form). EEDM `criteria={...}` flattening via description scraper + picker + Raw JSON toggle. Version switching re-projects drafts with orphan/coercion/undocumented-chip warnings. Body defaults to Raw JSON with Prefill-from-schema; Form mode available with recursive nested rendering. F5 / Ctrl+Enter send; Shift+F5 skips the prod verb-safety modal.
+6. ✅ **Response panel UI** (`web/docs/response/ResponsePanel.svelte`) — full-width under the three top panes. **Table** tab algorithmically decomposes JSON into flat peer tables (`shape.ts` — handles wrapper-collapse, pass-through rows, heterogeneous splits, 5-deep nesting, `_parent_id` vs `_parent_idx` synthesis); rail-less when there's one table, tree-rail when multiple; count-link chips navigate + filter by parent; sort / resize / hide-cols / copy-cell QoL affordances on the grid. **Raw** tab offers collapsible JSON tree (default ON), flat text with highlighting, pretty-print + line numbers, binary hex head, head-slice for >1 MB. **Headers** tab has Response / Request sub-tabs with per-tab Copy, click-to-reveal redaction on Authorization / Cookie / Set-Cookie. **Timing** tab renders Auth / Request / Response / Total bars (server-side phases via `X-Proxy-*` headers) + bytes, with human-readable ms-or-seconds formatting. Response state lifted from TryPanel to App.svelte with AbortController for cancel-previous.
+7. ✅ **Verb safety modal** — folded into item 5. Prod env + non-GET → confirm dialog with env badge, method + URL, redacted body preview, Send/Cancel. Esc cancels, Enter confirms. `Shift+F5` on the original Send skips the modal for one request.
 8. **Request history** — SQLite `request_history` (already in schema) populated per send. Third sidebar tab "History" with rerun, filter, export as JSON/curl.
 
 **Should-do during Phase 2 while we're in there:**
 
-- Split `server.ts` into per-route modules (known issue above). Makes Try-panel handlers testable in isolation.
+- ✅ Split `server.ts` into per-route modules — done. Each handler is now testable without booting `Bun.serve`.
 - Extract shared helpers from profile views into `web/lib/lineage.ts`.
 - AbortSignal wire-up for the SSE indexer stream (known issue).
 - Add HTTP-surface integration tests for the search / profile / API-detail endpoints.
