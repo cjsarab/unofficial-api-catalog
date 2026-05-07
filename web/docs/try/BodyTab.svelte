@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { OpenAPIRequestBody, OpenAPISchema } from "../../lib/openapi.ts";
   import { isJsonContentType } from "../response/format.ts";
+  import { buildSkeleton } from "./build-skeleton.ts";
   import SchemaInput from "./SchemaInput.svelte";
 
   type Props = {
@@ -43,29 +44,6 @@
     if (schema) {
       onTextChange(JSON.stringify(buildSkeleton(schema), null, 2));
     }
-  }
-
-  function buildSkeleton(s: OpenAPISchema): unknown {
-    if (s.default !== undefined) return s.default;
-    if (s.enum && s.enum.length > 0) return s.enum[0];
-    if (s.type === "string") {
-      if (s.format === "uuid") return "00000000-0000-0000-0000-000000000000";
-      if (s.format === "date") return "2026-01-01";
-      if (s.format === "date-time") return "2026-01-01T00:00:00Z";
-      return "";
-    }
-    if (s.type === "integer" || s.type === "number") return s.minimum ?? 0;
-    if (s.type === "boolean") return false;
-    if (s.type === "array") return s.items ? [buildSkeleton(s.items)] : [];
-    if (s.type === "object" && s.properties) {
-      const required = new Set(s.required ?? []);
-      const out: Record<string, unknown> = {};
-      for (const [k, sub] of Object.entries(s.properties)) {
-        if (required.has(k)) out[k] = buildSkeleton(sub);
-      }
-      return out;
-    }
-    return null;
   }
 </script>
 
