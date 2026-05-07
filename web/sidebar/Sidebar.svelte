@@ -4,6 +4,16 @@
   import ColumnDict from "./ColumnDict.svelte";
   import TableList from "./TableList.svelte";
   import Splitter from "../shell/Splitter.svelte";
+  import { STORAGE_KEYS, getStored, setStored } from "../lib/storage.ts";
+
+  type SidebarState = {
+    showFamilies: boolean;
+    showColumns: boolean;
+    showTables: boolean;
+    familiesFr: number;
+    columnsFr: number;
+    tablesFr: number;
+  };
 
   type Props = {
     onSelectApi: (family: string, resource: string, version?: string) => void;
@@ -34,40 +44,23 @@
   let columnsFr = $state(1.2);
   let tablesFr = $state(0.8);
 
-  const STORAGE = "acx:sidebar:v1";
-
   $effect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE);
-      if (saved) {
-        const p = JSON.parse(saved) as Partial<{
-          showFamilies: boolean;
-          showColumns: boolean;
-          showTables: boolean;
-          familiesFr: number;
-          columnsFr: number;
-          tablesFr: number;
-        }>;
-        if (typeof p.showFamilies === "boolean") showFamilies = p.showFamilies;
-        if (typeof p.showColumns === "boolean") showColumns = p.showColumns;
-        if (typeof p.showTables === "boolean") showTables = p.showTables;
-        if (typeof p.familiesFr === "number") familiesFr = p.familiesFr;
-        if (typeof p.columnsFr === "number") columnsFr = p.columnsFr;
-        if (typeof p.tablesFr === "number") tablesFr = p.tablesFr;
-      }
-    } catch {
-      /* ignore */
-    }
+    const p = getStored<Partial<SidebarState>>(STORAGE_KEYS.sidebar, {});
+    if (typeof p.showFamilies === "boolean") showFamilies = p.showFamilies;
+    if (typeof p.showColumns === "boolean") showColumns = p.showColumns;
+    if (typeof p.showTables === "boolean") showTables = p.showTables;
+    if (typeof p.familiesFr === "number") familiesFr = p.familiesFr;
+    if (typeof p.columnsFr === "number") columnsFr = p.columnsFr;
+    if (typeof p.tablesFr === "number") tablesFr = p.tablesFr;
   });
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   function persist() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      localStorage.setItem(
-        STORAGE,
-        JSON.stringify({ showFamilies, showColumns, showTables, familiesFr, columnsFr, tablesFr }),
-      );
+      setStored<SidebarState>(STORAGE_KEYS.sidebar, {
+        showFamilies, showColumns, showTables, familiesFr, columnsFr, tablesFr,
+      });
     }, 300);
   }
 

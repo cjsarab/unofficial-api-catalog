@@ -1,5 +1,6 @@
 import type { RouteHandler } from "./types.ts";
 import { db } from "../db.ts";
+import { errorResponse } from "../lib/http.ts";
 
 // NOTE: route-order matters within this module — exact paths first, then
 // narrower prefixes, then the broadest catch-all profile route last. Reordering
@@ -107,7 +108,7 @@ export const handleColumns: RouteHandler = (_req, url) => {
   // LIKE treating `_` as a wildcard.
   if (url.pathname.startsWith("/api/columns/prefix/")) {
     const prefix = decodeURIComponent(url.pathname.slice("/api/columns/prefix/".length));
-    if (!prefix) return Response.json({ error: "prefix required" }, { status: 400 });
+    if (!prefix) return errorResponse("prefix required", 400);
     const rows = db()
       .query<
         { column_name: string; api_count: number; total_occurrences: number },
@@ -134,7 +135,7 @@ export const handleColumns: RouteHandler = (_req, url) => {
   // (columns appearing in the same APIs as this one).
   if (url.pathname.startsWith("/api/columns/")) {
     const columnName = decodeURIComponent(url.pathname.slice("/api/columns/".length));
-    if (!columnName) return Response.json({ error: "column name required" }, { status: 400 });
+    if (!columnName) return errorResponse("column name required", 400);
     const handle = db();
 
     const apis = handle

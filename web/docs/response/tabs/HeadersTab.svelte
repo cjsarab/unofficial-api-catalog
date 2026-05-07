@@ -104,10 +104,10 @@
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 4px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .sub-tabs button {
     font: inherit;
@@ -115,7 +115,7 @@
     color: var(--fg-dim);
     border: 1px solid transparent;
     border-bottom: 2px solid transparent;
-    padding: 3px 10px;
+    padding: 3px var(--space-2-5);
     cursor: pointer;
   }
   .sub-tabs button:hover {
@@ -135,7 +135,7 @@
   }
   .sub-tabs .copy {
     border: 1px solid var(--border);
-    padding: 2px 8px;
+    padding: var(--space-0) var(--space-2);
   }
   .sub-tabs .copy:hover {
     border-color: var(--accent);
@@ -144,10 +144,10 @@
   dl {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 2px var(--space-3);
+    gap: var(--space-0) var(--space-3);
     margin: 0;
     padding: var(--space-3);
-    font-size: 12px;
+    font-size: var(--fs-base);
     overflow: auto;
     flex: 1;
   }
@@ -166,9 +166,9 @@
     font: inherit;
     background: transparent;
     border: none;
-    padding: 0 6px 0 0;
+    padding: 0 var(--space-1-5) 0 0;
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     cursor: pointer;
   }
   .reveal:hover {
@@ -178,6 +178,6 @@
     padding: var(--space-4);
     text-align: center;
     color: var(--fg-dim);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
 </style>

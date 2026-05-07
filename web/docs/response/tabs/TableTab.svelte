@@ -267,11 +267,11 @@
     justify-content: space-between;
     align-items: baseline;
     gap: var(--space-3);
-    padding: 4px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     color: var(--fg-dim);
   }
   .crumbs a {
@@ -281,7 +281,7 @@
   }
   .crumbs a:hover { color: var(--accent); }
   .crumbs strong { color: var(--fg); font-weight: normal; }
-  .crumbs .sep { color: var(--fg-dim); padding: 0 4px; }
+  .crumbs .sep { color: var(--fg-dim); padding: 0 var(--space-1); }
   .crumbs .meta { color: var(--fg-dim); }
   .meta-group {
     display: inline-flex;
@@ -293,7 +293,7 @@
     background: transparent;
     color: var(--fg);
     border: 1px solid var(--border);
-    padding: 1px 8px;
+    padding: 1px var(--space-2);
     cursor: pointer;
     font-size: 10.5px;
   }
@@ -303,17 +303,17 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: 4px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     background: color-mix(in srgb, var(--accent) 15%, var(--bg-panel) 85%);
     border-bottom: 1px solid var(--border);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     color: var(--fg);
     font-family: var(--font-mono);
   }
   .filter-banner code {
     font-family: inherit;
     background: var(--bg-raised);
-    padding: 1px 6px;
+    padding: 1px var(--space-1-5);
     border: 1px solid var(--border);
   }
   .filter-banner .dim { color: var(--fg-dim); }
@@ -323,20 +323,20 @@
     background: transparent;
     color: var(--fg-dim);
     border: 1px solid var(--border);
-    padding: 1px 8px;
+    padding: 1px var(--space-2);
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .filter-banner button:hover { color: var(--accent); border-color: var(--accent); }
   .not-tabular {
     padding: var(--space-5);
     color: var(--fg);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
     text-align: center;
   }
   .not-tabular p { margin: var(--space-2) 0; }
-  .dim { color: var(--fg-dim); font-size: 11px; }
+  .dim { color: var(--fg-dim); font-size: var(--fs-sm); }
   code { font-family: var(--font-mono); }
 
   /* Columns dropdown — rendered at top level with position:fixed so it
@@ -346,18 +346,18 @@
     background: var(--bg-panel);
     border: 1px solid var(--accent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     z-index: 100;
     min-width: 220px;
     max-height: 320px;
     overflow-y: auto;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     text-transform: none;
     letter-spacing: normal;
   }
   .menu-label {
-    padding: 4px 12px;
+    padding: var(--space-1) var(--space-3);
     color: var(--fg-dim);
     font-size: 9.5px;
     letter-spacing: 0.12em;
@@ -372,18 +372,18 @@
     color: var(--fg);
     border: none;
     cursor: pointer;
-    padding: 4px 12px;
-    font-size: 11px;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--fs-sm);
   }
   .menu-item:hover:not(:disabled) { background: var(--bg-raised); color: var(--accent); }
   .menu-item:disabled { color: var(--fg-dim); cursor: default; opacity: 0.6; }
-  .checkbox-item { display: flex; align-items: center; gap: 6px; }
+  .checkbox-item { display: flex; align-items: center; gap: var(--space-1-5); }
   .checkmark { font-family: var(--font-mono); width: 14px; text-align: center; }
   .check-label { flex: 1; font-family: var(--font-mono); }
   .columns-menu .dim { color: var(--fg-dim); font-size: 10.5px; }
   hr {
     border: none;
     border-top: 1px solid var(--border);
-    margin: 2px 0;
+    margin: var(--space-0) 0;
   }
 </style>

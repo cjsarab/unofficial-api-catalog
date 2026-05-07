@@ -299,7 +299,7 @@
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
   }
-  .input-row .icon { color: var(--fg-dim); font-size: 16px; }
+  .input-row .icon { color: var(--fg-dim); font-size: var(--fs-lg); }
   .input-row input {
     flex: 1;
     font: inherit;
@@ -308,7 +308,7 @@
     color: var(--fg-bright);
     border: none;
     outline: none;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
   }
   .input-row input::placeholder { color: var(--fg-dim); opacity: 0.7; }
   .input-row .hint {
@@ -316,17 +316,17 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--fg-dim);
-    padding: 2px 6px;
+    padding: var(--space-0) var(--space-1-5);
     border: 1px solid var(--border);
   }
 
   .status, .empty-hint {
     padding: var(--space-4) var(--space-4);
     color: var(--fg-dim);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   .empty-hint .label {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--fg-dim);
@@ -335,7 +335,7 @@
   .empty-hint dl {
     display: grid;
     grid-template-columns: 140px 1fr;
-    gap: 2px var(--space-3);
+    gap: var(--space-0) var(--space-3);
     margin: 0;
     font-size: 11.5px;
   }
@@ -350,7 +350,7 @@
   .empty-hint code {
     background: var(--bg-raised);
     border: 1px solid var(--border);
-    padding: 0 4px;
+    padding: 0 var(--space-1);
     color: var(--fg);
   }
   .empty-hint .nav-hint {
@@ -363,20 +363,20 @@
   .results { overflow: auto; flex: 1; }
   .applied-filters {
     display: flex;
-    gap: 6px;
-    padding: 6px var(--space-4);
+    gap: var(--space-1-5);
+    padding: var(--space-1-5) var(--space-4);
     border-bottom: 1px dotted var(--border);
   }
   .filter-chip {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     color: var(--accent);
     border: 1px solid var(--accent);
-    padding: 1px 8px;
+    padding: 1px var(--space-2);
     font-family: var(--font-mono);
   }
 
   .section-head {
-    padding: 8px var(--space-4) 4px;
+    padding: var(--space-2) var(--space-4) var(--space-1);
     color: var(--fg-dim);
     font-size: 9.5px;
     letter-spacing: 0.14em;
@@ -410,14 +410,14 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     text-align: center;
-    padding: 1px 6px;
+    padding: 1px var(--space-1-5);
     background: var(--bg-raised);
     border: 1px solid var(--border);
     color: var(--fg-dim);
     font-family: var(--font-mono);
   }
   .label-main {
-    font-size: 12px;
+    font-size: var(--fs-base);
     color: var(--fg-bright);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -428,13 +428,13 @@
   .label-main.col-name { color: var(--fg-bright); font-family: var(--font-mono); }
   .label-main.tbl-name { color: var(--warn); font-family: var(--font-mono); }
   .label-meta {
-    font-size: 11px;
+    font-size: var(--fs-sm);
     color: var(--fg-dim);
     text-align: right;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 6px;
+    gap: var(--space-1-5);
     overflow: hidden;
   }
   .label-meta .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

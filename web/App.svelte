@@ -14,6 +14,8 @@
   import ResponsePanel from "./docs/response/ResponsePanel.svelte";
   import ResponseEmpty from "./docs/response/ResponseEmpty.svelte";
   import type { ResponseView } from "./docs/response/types.ts";
+  import { STORAGE_KEYS, getStoredString, setStoredString } from "./lib/storage.ts";
+  import { formatBytes } from "./docs/response/format.ts";
 
   type CatalogPathStatus = "ok" | "missing" | "invalid" | "none";
   type Region = "us" | "ca" | "eu" | "ap";
@@ -42,7 +44,7 @@
     errors: string[];
   };
 
-  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScanStatus = import("@server/indexer/index.ts").LastScanStatus;
   type LastScan = {
     status: LastScanStatus | null;
     startedAt: number | null;
@@ -84,7 +86,6 @@
   let activeEnvId = $state<string | null>(null);
 
   let theme = $state<ThemeName>("phosphor");
-  const THEME_STORAGE = "acx:theme:v1";
 
   // ---- routing (backed by browser History API so back/forward works) ---
   type Route =
@@ -93,7 +94,7 @@
     | { kind: "column"; name: string }
     | { kind: "table"; name: string };
 
-  type SettingsSection = "environments" | "appearance" | "catalog";
+  type SettingsSection = "environments" | "catalog";
 
   let route = $state<Route>({ kind: "overview" });
   let focusedEndpoint = $state<{ method: string; path: string } | null>(null);
@@ -126,9 +127,10 @@
     const segs = pathname.split("/").filter(Boolean).map(decodeURIComponent);
     if (segs[0] !== "settings") return null;
     const section = segs[1] ?? "environments";
-    if (section === "environments" || section === "appearance" || section === "catalog") {
+    if (section === "environments" || section === "catalog") {
       return section;
     }
+    // Legacy /settings/appearance URLs (and anything else) fall back to env.
     return "environments";
   }
 
@@ -282,21 +284,13 @@
   function applyTheme(t: ThemeName) {
     theme = t;
     document.documentElement.setAttribute("data-theme", t);
-    try {
-      localStorage.setItem(THEME_STORAGE, t);
-    } catch {
-      /* ignore */
-    }
+    setStoredString(STORAGE_KEYS.theme, t);
   }
 
   function restoreTheme() {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE);
-      if (saved && ["phosphor", "amber", "dos", "beige"].includes(saved)) {
-        applyTheme(saved as ThemeName);
-      }
-    } catch {
-      /* ignore */
+    const saved = getStoredString(STORAGE_KEYS.theme, "");
+    if (saved && ["phosphor", "amber", "dos", "beige"].includes(saved)) {
+      applyTheme(saved as ThemeName);
     }
   }
 
@@ -578,12 +572,6 @@
 
   // ---- helpers ----------------------------------------------------------
   const fmt = (n: number) => n.toLocaleString("en-US");
-  function fmtBytes(b: number) {
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
-    if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-    return `${(b / 1024 ** 3).toFixed(1)} GB`;
-  }
 </script>
 
 {#if mode === "loading"}
@@ -637,7 +625,7 @@
           <dl class="stats compact">
             <dt>families</dt><dd>{fmt(wizardValidation.familiesFound.length)} of 20 present</dd>
             <dt>specs</dt><dd>{fmt(wizardValidation.yamlCount)} YAML files</dd>
-            <dt>size</dt><dd>{fmtBytes(wizardValidation.totalSizeBytes)}</dd>
+            <dt>size</dt><dd>{formatBytes(wizardValidation.totalSizeBytes)}</dd>
           </dl>
         {:else}
           <h3>Not a valid catalog path</h3>
@@ -837,9 +825,8 @@
             activeEnvId = nextActiveId;
           }}
           onClose={closeSettings}
-          theme={theme}
-          onthemechange={applyTheme}
           catalogPath={config?.catalogPath}
+          onCatalogRefresh={loadAll}
           onsectionchange={(s) => (settingsSection = s)}
           region={config?.region ?? "us"}
           onregionchange={setRegion}
@@ -859,14 +846,14 @@
   }
   .tag {
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   h1 {
     color: var(--accent);
     margin: var(--space-1) 0 var(--space-3);
-    font-size: 22px;
+    font-size: var(--fs-xl);
     letter-spacing: 0.02em;
   }
   h2 {
@@ -876,23 +863,23 @@
     text-transform: uppercase;
     margin: var(--space-5) 0 var(--space-2);
     border-bottom: 1px dotted var(--border);
-    padding-bottom: 4px;
+    padding-bottom: var(--space-1);
   }
-  h3 { color: var(--fg-bright); font-size: 14px; margin: 0 0 var(--space-2); }
-  h4 { color: var(--warn); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin: var(--space-3) 0 4px; }
+  h3 { color: var(--fg-bright); font-size: var(--fs-md); margin: 0 0 var(--space-2); }
+  h4 { color: var(--warn); font-size: var(--fs-sm); letter-spacing: 0.1em; text-transform: uppercase; margin: var(--space-3) 0 var(--space-1); }
   p { line-height: 1.55; margin: var(--space-3) 0; }
-  p.dim { color: var(--fg-dim); font-size: 12px; }
-  p.small { font-size: 11px; }
-  p.error { color: var(--danger); font-size: 12px; border: 1px solid var(--danger); padding: 6px 10px; }
+  p.dim { color: var(--fg-dim); font-size: var(--fs-base); }
+  p.small { font-size: var(--fs-sm); }
+  p.error { color: var(--danger); font-size: var(--fs-base); border: 1px solid var(--danger); padding: var(--space-1-5) var(--space-2-5); }
   p.ok { color: var(--fg-bright); }
-  code { background: var(--bg-raised); padding: 1px 6px; border: 1px solid var(--border); }
+  code { background: var(--bg-raised); padding: 1px var(--space-1-5); border: 1px solid var(--border); }
 
   button {
     font: inherit;
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 6px 14px;
+    padding: var(--space-1-5) 14px;
     cursor: pointer;
   }
   button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
@@ -903,7 +890,7 @@
     background: var(--accent);
     border-color: var(--accent);
     font-weight: 600;
-    padding: 8px 20px;
+    padding: var(--space-2) var(--space-5);
   }
   button.primary:hover:not(:disabled) { filter: brightness(1.1); }
   button.primary:disabled { color: var(--fg-dim); background: var(--bg-raised); border-color: var(--border); }
@@ -931,7 +918,7 @@
   dt {
     color: var(--fg-dim);
     text-transform: uppercase;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     align-self: center;
   }
@@ -945,10 +932,10 @@
   ul.probes li {
     display: flex;
     gap: var(--space-3);
-    padding: 2px 0;
+    padding: var(--space-0) 0;
     border-bottom: 1px dotted var(--border);
   }
-  ul.warn li { color: var(--warn); padding: 2px 0; }
+  ul.warn li { color: var(--warn); padding: var(--space-0) 0; }
 
   section.validation {
     border: 1px solid var(--border);
@@ -957,7 +944,7 @@
   }
   section.validation.ok { border-color: var(--border-strong); background: color-mix(in srgb, var(--bg-raised) 80%, transparent); }
   section.validation.err { border-color: var(--danger); }
-  section.validation ul { margin: 4px 0; padding-left: 16px; list-style: square; }
+  section.validation ul { margin: var(--space-1) 0; padding-left: var(--space-4); list-style: square; }
   section.validation li { padding: 1px 0; }
 
   .picker-row { display: flex; gap: var(--space-2); margin: var(--space-3) 0; }
@@ -967,7 +954,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 6px 10px;
+    padding: var(--space-1-5) var(--space-2-5);
   }
   .picker-row input:focus { outline: none; border-color: var(--accent); color: var(--accent); }
 
@@ -996,13 +983,13 @@
   .progress-meta {
     display: flex;
     justify-content: space-between;
-    margin-top: 6px;
-    font-size: 11px;
+    margin-top: var(--space-1-5);
+    font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
   }
   .progress-meta .dim { color: var(--fg-dim); }
   .progress-file {
-    margin-top: 4px;
+    margin-top: var(--space-1);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1020,7 +1007,7 @@
   .settings-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--overlay-bg);
     display: grid;
     place-items: center;
     z-index: 90;
@@ -1042,14 +1029,14 @@
   }
   .route-placeholder .label {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   .route-placeholder h1 {
     color: var(--accent);
     font-size: 20px;
-    margin: 6px 0 var(--space-3);
+    margin: var(--space-1-5) 0 var(--space-3);
     letter-spacing: 0.02em;
   }
 </style>

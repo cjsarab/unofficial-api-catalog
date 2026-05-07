@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { extractEndpoint } from "../server/routes/endpoint.ts";
 
 const SPEC_YAML = `

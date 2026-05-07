@@ -103,7 +103,7 @@
     background: var(--bg-panel);
     border-right: 1px solid var(--border);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     display: flex;
     flex-direction: column;
   }
@@ -120,17 +120,17 @@
     background: var(--bg);
     color: var(--fg);
     border: 1px solid var(--border);
-    padding: 3px 6px;
+    padding: 3px var(--space-1-5);
   }
-  .items { padding: 4px 0; }
+  .items { padding: var(--space-1) 0; }
   .item {
     display: flex;
     align-items: flex-start;
-    padding: 3px 6px;
+    padding: 3px var(--space-1-5);
     cursor: pointer;
     border-left: 2px solid transparent;
     color: var(--fg-dim);
-    gap: 4px;
+    gap: var(--space-1);
   }
   .item:hover { background: var(--bg-raised); }
   .item.active {
@@ -138,8 +138,8 @@
     color: var(--fg);
     border-left-color: var(--accent);
   }
-  .item.depth-0 { padding-left: 4px; }
-  .item.depth-1 { padding-left: 20px; }
+  .item.depth-0 { padding-left: var(--space-1); }
+  .item.depth-1 { padding-left: var(--space-5); }
   .item.depth-2 { padding-left: 36px; }
   .item.depth-3 { padding-left: 52px; }
   .item.depth-4 { padding-left: 68px; }
@@ -158,17 +158,17 @@
   .caret.empty { cursor: default; }
   .body { flex: 1; min-width: 0; }
   .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .meta { color: var(--fg-dim); font-size: 10px; opacity: 0.8; }
+  .meta { color: var(--fg-dim); font-size: var(--fs-xs); opacity: 0.8; }
   .path {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     opacity: 0.6;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .overflow {
     color: var(--fg-dim);
-    padding: 4px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     font-size: 10.5px;
   }
 </style>

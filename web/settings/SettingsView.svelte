@@ -1,6 +1,5 @@
 <script lang="ts">
   import EnvironmentsPanel from "./EnvironmentsPanel.svelte";
-  import AppearancePanel from "./AppearancePanel.svelte";
   import CatalogPanel from "./CatalogPanel.svelte";
 
   type Environment = {
@@ -9,8 +8,7 @@
     production: boolean;
     hasApiKey: boolean;
   };
-  type ThemeName = "phosphor" | "amber" | "dos" | "beige";
-  type Section = "environments" | "appearance" | "catalog";
+  type Section = "environments" | "catalog";
   type Region = "us" | "ca" | "eu" | "ap";
 
   type Props = {
@@ -19,9 +17,8 @@
     activeEnvId: string | null;
     onChange: (envs: Environment[], activeEnvId: string | null) => void;
     onClose: () => void;
-    theme: ThemeName;
-    onthemechange: (t: ThemeName) => void;
     catalogPath?: string;
+    onCatalogRefresh: () => void | Promise<void>;
     onsectionchange: (s: Section) => void;
     region: Region;
     onregionchange: (r: Region) => void;
@@ -32,9 +29,8 @@
     activeEnvId,
     onChange,
     onClose,
-    theme,
-    onthemechange,
     catalogPath,
+    onCatalogRefresh,
     onsectionchange,
     region,
     onregionchange,
@@ -42,7 +38,6 @@
 
   const sections: Array<{ id: Section; label: string }> = [
     { id: "environments", label: "Environments" },
-    { id: "appearance", label: "Appearance" },
     { id: "catalog", label: "Catalog" },
   ];
 </script>
@@ -69,10 +64,8 @@
     <section class="section-content">
       {#if section === "environments"}
         <EnvironmentsPanel {envs} {activeEnvId} {onChange} {region} {onregionchange} />
-      {:else if section === "appearance"}
-        <AppearancePanel {theme} {onthemechange} />
       {:else if section === "catalog"}
-        <CatalogPanel {catalogPath} />
+        <CatalogPanel {catalogPath} onRefresh={onCatalogRefresh} />
       {/if}
     </section>
   </div>

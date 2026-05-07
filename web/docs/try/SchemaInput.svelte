@@ -165,44 +165,44 @@
 
 <style>
   .si-input, .si-select, .si-raw {
-    background: var(--bg, #0d120d);
-    color: var(--fg, #a9ff68);
-    border: 1px solid var(--border, #1e2a1e);
-    padding: 4px 6px;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: var(--space-1) var(--space-1-5);
     font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 12px;
+    font-size: var(--fs-base);
     width: 100%;
   }
-  .si-input:focus, .si-select:focus, .si-raw:focus { outline: 1px solid var(--border-strong, #6ba544); }
+  .si-input:focus, .si-select:focus, .si-raw:focus { outline: 1px solid var(--border-strong); }
   .invalid { border-color: var(--danger-border) !important; color: var(--danger); }
   /* Inherit color-scheme from :root (set per-theme in theme.css) so date
      pickers blend on both dark and beige themes. */
 
-  .si-bool { display: flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
-  .si-bool input { accent-color: var(--border-strong, #6ba544); }
+  .si-bool { display: flex; align-items: center; gap: var(--space-1-5); color: var(--fg); cursor: pointer; }
+  .si-bool input { accent-color: var(--border-strong); }
 
   .si-chips {
-    background: var(--bg, #0d120d);
-    border: 1px solid var(--border, #1e2a1e);
+    background: var(--bg);
+    border: 1px solid var(--border);
     padding: 3px;
     display: flex; flex-wrap: wrap; gap: 3px; align-items: center;
   }
   .si-chip {
-    background: var(--bg-panel, #152815);
-    color: var(--fg-bright, #cfff9a);
-    padding: 2px 6px; border: 1px solid var(--border, #2a4a2a);
+    background: var(--bg-panel);
+    color: var(--fg-bright);
+    padding: var(--space-0) var(--space-1-5); border: 1px solid var(--border);
   }
-  .si-chip-x { background: transparent; border: none; color: var(--fg-dim, #6ba544); cursor: pointer; margin-left: 4px; padding: 0; }
+  .si-chip-x { background: transparent; border: none; color: var(--fg-dim); cursor: pointer; margin-left: var(--space-1); padding: 0; }
   .si-chip-input {
-    background: transparent; border: none; color: var(--fg, #a9ff68);
-    font-family: inherit; outline: none; padding: 2px 4px; flex: 1; min-width: 60px;
+    background: transparent; border: none; color: var(--fg);
+    font-family: inherit; outline: none; padding: var(--space-0) var(--space-1); flex: 1; min-width: 60px;
   }
 
-  .si-obj { padding-left: 8px; border-left: 2px solid var(--border, #2a4a2a); display: flex; flex-direction: column; gap: 4px; }
-  .si-obj-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 6px; align-items: center; }
-  .si-obj-label { color: var(--fg-dim, #6ba544); font-size: 12px; display: flex; flex-direction: column; }
-  .si-obj-type { color: var(--fg-dim, #3d6927); font-size: 10px; }
-  .si-required { color: var(--warn); margin-left: 2px; }
+  .si-obj { padding-left: var(--space-2); border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: var(--space-1); }
+  .si-obj-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: var(--space-1-5); align-items: center; }
+  .si-obj-label { color: var(--fg-dim); font-size: var(--fs-base); display: flex; flex-direction: column; }
+  .si-obj-type { color: var(--fg-dim); font-size: var(--fs-xs); }
+  .si-required { color: var(--warn); margin-left: var(--space-0); }
 
   .si-raw { min-height: 48px; resize: vertical; }
 </style>

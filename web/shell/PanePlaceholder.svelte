@@ -30,20 +30,20 @@
   }
   .label {
     color: var(--fg);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-bottom: var(--space-2);
   }
   p {
-    margin: 2px 0;
-    font-size: 12px;
+    margin: var(--space-0) 0;
+    font-size: var(--fs-base);
     max-width: 36ch;
     line-height: 1.4;
   }
   p.task {
     margin-top: var(--space-2);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     opacity: 0.65;
     letter-spacing: 0.08em;
     text-transform: uppercase;

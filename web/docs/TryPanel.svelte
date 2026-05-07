@@ -40,7 +40,7 @@
   function freshState(): FormState {
     return {
       pathParams: {}, queryParams: {}, criteria: {}, criteriaRaw: {},
-      headers: [], body: { mode: "raw", text: "" }, headersOverridden: {},
+      headers: [], body: { mode: "form", text: "" }, headersOverridden: {},
     };
   }
 
@@ -75,7 +75,7 @@
         const existingSchema = schemas.get(key);
         const existingState = states.get(key) ?? freshState();
         const { nextState, warnings: ws } = existingSchema
-          ? reprojectFormState(existingState, existingSchema, schema)
+          ? reprojectFormState(existingState, schema)
           : { nextState: existingState, warnings: [] as MigrationWarning[] };
         states.set(key, nextState);
         schemas.set(key, schema);
@@ -95,6 +95,16 @@
 
   // Tab state.
   let tab = $state<"params" | "headers" | "body">("params");
+
+  // Form-mode body value derived from the canonical text. Keeps the round-trip
+  // lossless: edits in form mode flow back as JSON.stringify into text, and
+  // form-mode reads parse text again. Invalid JSON degrades to undefined so
+  // SchemaInput just shows empty fields rather than crashing.
+  const bodyFormValue = $derived.by<unknown>(() => {
+    if (!state.body.text.trim()) return undefined;
+    try { return JSON.parse(state.body.text) as unknown; }
+    catch { return undefined; }
+  });
 
   // Computed URL
   const computedUrl = $derived.by<string>(() => {
@@ -456,7 +466,7 @@
           onModeChange={(m) => persist({ ...state, body: { ...state.body, mode: m } })}
           text={state.body.text}
           onTextChange={(t) => persist({ ...state, body: { ...state.body, text: t } })}
-          formValue={undefined}
+          formValue={bodyFormValue}
           onFormValueChange={(v) => persist({ ...state, body: { ...state.body, text: JSON.stringify(v, null, 2) } })}
         />
       {/if}
@@ -478,38 +488,38 @@
 {/if}
 
 <style>
-  .tp { display: flex; flex-direction: column; height: 100%; font-family: ui-monospace, monospace; font-size: 12px; color: var(--fg, #a9ff68); }
-  .empty, .err { padding: 12px; color: var(--fg-dim, #6ba544); font-style: italic; }
+  .tp { display: flex; flex-direction: column; height: 100%; font-family: ui-monospace, monospace; font-size: var(--fs-base); color: var(--fg); }
+  .empty, .err { padding: var(--space-3); color: var(--fg-dim); font-style: italic; }
   .err { color: var(--danger); }
   .url-bar {
-    display: flex; gap: 6px; align-items: center;
-    padding: 6px 8px; background: var(--bg-panel, #152815);
-    border-bottom: 1px solid var(--border, #2a4a2a);
+    display: flex; gap: var(--space-1-5); align-items: center;
+    padding: var(--space-1-5) var(--space-2); background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
   }
-  .method { padding: 2px 6px; font-weight: bold; font-size: 11px; flex: 0 0 auto; }
+  .method { padding: var(--space-0) var(--space-1-5); font-weight: bold; font-size: var(--fs-sm); flex: 0 0 auto; }
   .method-get { background: var(--method-get-bg); color: var(--method-get-fg); }
   .method-post { background: var(--method-post-bg); color: var(--method-post-fg); }
   .method-put, .method-patch { background: var(--method-put-bg); color: var(--method-put-fg); }
   .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
-  .url { flex: 1 1 0; overflow-wrap: anywhere; color: var(--fg-bright, #cfff9a); }
+  .url { flex: 1 1 0; overflow-wrap: anywhere; color: var(--fg-bright); }
   .send {
-    background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
-    border: 1px solid var(--border-strong, #6ba544); padding: 4px 10px;
+    background: var(--bg); color: var(--fg-bright);
+    border: 1px solid var(--border-strong); padding: var(--space-1) var(--space-2-5);
     font-family: inherit; cursor: pointer;
   }
   .send:disabled { opacity: 0.5; cursor: not-allowed; }
-  .banner { padding: 4px 10px; font-size: 11px; }
+  .banner { padding: var(--space-1) var(--space-2-5); font-size: var(--fs-sm); }
   .banner.err { background: var(--danger-bg); color: var(--danger); border-left: 3px solid var(--danger-border); }
   .banner.warn { background: var(--warn-bg); color: var(--warn); border-left: 3px solid var(--warn-border); }
-  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border, #2a4a2a); padding: 0 4px; }
+  .tabs { display: flex; gap: var(--space-0); border-bottom: 1px solid var(--border); padding: 0 var(--space-1); }
   .tabs button {
-    background: transparent; color: var(--fg-dim, #6ba544);
+    background: transparent; color: var(--fg-dim);
     border: 1px solid transparent; border-bottom: none;
-    padding: 4px 10px; font-family: inherit; cursor: pointer; font-size: 11px;
+    padding: var(--space-1) var(--space-2-5); font-family: inherit; cursor: pointer; font-size: var(--fs-sm);
   }
   .tabs button.active {
-    background: var(--bg-panel, #152815); color: var(--fg, #a9ff68);
-    border-color: var(--border, #2a4a2a);
+    background: var(--bg-panel); color: var(--fg);
+    border-color: var(--border);
   }
-  .tab-body { flex: 1 1 0; overflow: auto; padding: 8px; }
+  .tab-body { flex: 1 1 0; overflow: auto; padding: var(--space-2); }
 </style>

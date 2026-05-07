@@ -3,6 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 
 import type { RouteHandler } from "./types.ts";
 import { db } from "../db.ts";
+import { errorResponse, isObject } from "../lib/http.ts";
 import type { OpenAPIParameter, OpenAPIRequestBody, OpenAPIResponse } from "../../web/lib/openapi.ts";
 
 // OpenAPI subset — narrowed; same shape the client consumes via EndpointSchema.
@@ -30,33 +31,28 @@ export function extractEndpoint(
   // Ellucian wrap-quirk preprocessing (lives in server/indexer/parser.ts too).
   const preprocessed = specYaml.replace(/\\(\r?\n)[ \t]*/g, "");
   const spec = parseYaml(preprocessed) as unknown;
-  if (typeof spec !== "object" || spec === null) throw new Error("spec did not parse to an object");
+  if (!isObject(spec)) throw new Error("spec did not parse to an object");
 
-  const paths = (spec as Record<string, unknown>)["paths"];
-  if (typeof paths !== "object" || paths === null) return null;
+  const paths = spec["paths"];
+  if (!isObject(paths)) return null;
 
   const lowerMethod = method.toLowerCase();
   if (!HTTP_METHODS.includes(lowerMethod)) return null;
 
-  const pathItem = (paths as Record<string, unknown>)[path];
-  if (typeof pathItem !== "object" || pathItem === null) return null;
+  const pathItem = paths[path];
+  if (!isObject(pathItem)) return null;
 
-  const op = (pathItem as Record<string, unknown>)[lowerMethod];
-  if (typeof op !== "object" || op === null) return null;
+  const op = pathItem[lowerMethod];
+  if (!isObject(op)) return null;
 
-  const operation = op as Record<string, unknown>;
   return {
     method: lowerMethod.toUpperCase(),
     path,
-    summary: typeof operation.summary === "string" ? operation.summary : null,
-    description: typeof operation.description === "string" ? operation.description : null,
-    parameters: Array.isArray(operation.parameters) ? (operation.parameters as OpenAPIParameter[]) : [],
-    requestBody: (typeof operation.requestBody === "object" && operation.requestBody !== null)
-      ? (operation.requestBody as OpenAPIRequestBody)
-      : null,
-    responses: (typeof operation.responses === "object" && operation.responses !== null)
-      ? (operation.responses as Record<string, OpenAPIResponse>)
-      : {},
+    summary: typeof op.summary === "string" ? op.summary : null,
+    description: typeof op.description === "string" ? op.description : null,
+    parameters: Array.isArray(op.parameters) ? (op.parameters as OpenAPIParameter[]) : [],
+    requestBody: isObject(op.requestBody) ? (op.requestBody as unknown as OpenAPIRequestBody) : null,
+    responses: isObject(op.responses) ? (op.responses as unknown as Record<string, OpenAPIResponse>) : {},
   };
 }
 
@@ -86,7 +82,7 @@ export const handleEndpoint: RouteHandler = (_req, url) => {
   const version = url.searchParams.get("version");
 
   if (!method || !path || !version) {
-    return Response.json({ error: "method, path, version query params required" }, { status: 400 });
+    return errorResponse("method, path, version query params required", 400);
   }
 
   const handle = db();
@@ -96,24 +92,24 @@ export const handleEndpoint: RouteHandler = (_req, url) => {
     )
     .get(family, resource, version);
   if (!row) {
-    return Response.json({ error: "api not found", family, resource, version }, { status: 404 });
+    return errorResponse("api not found", 404, { family, resource, version });
   }
 
   let yaml: string;
   try {
     yaml = readWithCache(row.file_path);
   } catch (err) {
-    return Response.json({ error: "spec file unreadable", detail: (err as Error).message }, { status: 500 });
+    return errorResponse("spec file unreadable", 500, { detail: (err as Error).message });
   }
 
   let extracted: ExtractedEndpoint | null;
   try {
     extracted = extractEndpoint(yaml, method, path);
   } catch (err) {
-    return Response.json({ error: "spec parse failed", detail: (err as Error).message }, { status: 500 });
+    return errorResponse("spec parse failed", 500, { detail: (err as Error).message });
   }
   if (!extracted) {
-    return Response.json({ error: "endpoint-not-found", method, path }, { status: 404 });
+    return errorResponse("endpoint-not-found", 404, { method, path });
   }
 
   return Response.json(extracted);

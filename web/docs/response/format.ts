@@ -2,13 +2,15 @@
 // Pure — no imports needed.
 
 /**
- * Format a byte count as B / KB / MB. Zero returns "0 B".
+ * Format a byte count as B / KB / MB / GB. Zero or invalid returns "0 B".
+ * MB uses 2 decimals so response-panel byte counts stay precise; GB uses 1.
  */
 export function formatBytes(b: number): string {
   if (!Number.isFinite(b) || b < 0) return "0 B";
   if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-  return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(2)} MB`;
+  return `${(b / 1024 ** 3).toFixed(1)} GB`;
 }
 
 /**

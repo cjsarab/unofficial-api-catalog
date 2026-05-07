@@ -11,24 +11,25 @@ import {
   META_LAST_SCAN_ERROR,
   type LastScanStatus,
 } from "../indexer/index.ts";
-import { getMeta } from "../indexer/sqlite.ts";
+import { countRows, getMeta } from "../indexer/sqlite.ts";
+import { errorResponse } from "../lib/http.ts";
 
 export const handleIndexer: RouteHandler = async (req, url) => {
   if (url.pathname === "/api/index/scan" && req.method === "POST") {
     const body = (await req.json().catch(() => ({}))) as { catalogPath?: string };
     const catalogPath = body.catalogPath ?? url.searchParams.get("path") ?? "";
     if (!catalogPath) {
-      return Response.json({ error: "catalogPath required" }, { status: 400 });
+      return errorResponse("catalogPath required", 400);
     }
     if (!existsSync(catalogPath)) {
-      return Response.json({ error: "catalog folder not found", catalogPath }, { status: 404 });
+      return errorResponse("catalog folder not found", 404, { catalogPath });
     }
     try {
       const stats = await indexCatalog(catalogPath, { db: db(), signal: req.signal });
       return Response.json({ catalogPath, ...stats });
     } catch (err) {
       if (err instanceof ScanInFlightError) {
-        return Response.json({ error: "scan-in-flight" }, { status: 409 });
+        return errorResponse("scan-in-flight", 409);
       }
       throw err;
     }
@@ -39,9 +40,9 @@ export const handleIndexer: RouteHandler = async (req, url) => {
   // catalog path comes via query param.
   if (url.pathname === "/api/index/scan-stream") {
     const catalogPath = url.searchParams.get("path") ?? "";
-    if (!catalogPath) return Response.json({ error: "path required" }, { status: 400 });
+    if (!catalogPath) return errorResponse("path required", 400);
     if (!existsSync(catalogPath)) {
-      return Response.json({ error: "catalog folder not found", catalogPath }, { status: 404 });
+      return errorResponse("catalog folder not found", 404, { catalogPath });
     }
 
     const encoder = new TextEncoder();
@@ -104,15 +105,13 @@ export const handleIndexer: RouteHandler = async (req, url) => {
 
   if (url.pathname === "/api/index/summary") {
     const handle = db();
-    const apiCount = handle.query<{ c: number }, []>(`SELECT count(*) as c FROM apis`).get()?.c ?? 0;
-    const endpointCount = handle.query<{ c: number }, []>(`SELECT count(*) as c FROM endpoints`).get()?.c ?? 0;
-    const columnCount = handle.query<{ c: number }, []>(`SELECT count(*) as c FROM columns`).get()?.c ?? 0;
+    const apiCount = countRows(handle, "apis");
+    const endpointCount = countRows(handle, "endpoints");
+    const columnCount = countRows(handle, "columns");
     const distinctColumnCount = handle.query<{ c: number }, []>(
       `SELECT count(DISTINCT column_name) as c FROM columns WHERE kind = 'column'`,
     ).get()?.c ?? 0;
-    const lineageEdgeCount = handle.query<{ c: number }, []>(
-      `SELECT count(*) as c FROM lineage_edges`,
-    ).get()?.c ?? 0;
+    const lineageEdgeCount = countRows(handle, "lineage_edges");
     const families = handle
       .query<{ family: string; c: number }, []>(
         `SELECT family, count(*) as c FROM apis GROUP BY family ORDER BY c DESC`,

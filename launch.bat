@@ -6,21 +6,35 @@ rem Resolve the folder this launcher lives in (handles spaces in paths)
 set "APP_ROOT=%~dp0"
 if "%APP_ROOT:~-1%"=="\" set "APP_ROOT=%APP_ROOT:~0,-1%"
 
-rem Ensure Bun runtime is present; call setup if not
-if not exist "%APP_ROOT%\bun.exe" (
+rem Ensure Node + npm are on PATH
+where node >nul 2>nul
+if errorlevel 1 (
   echo.
-  echo Bun runtime not found. Running first-time setup...
+  echo Node.js was not found on PATH. Install Node 22.5+ from https://nodejs.org/ and try again.
   echo.
-  call "%APP_ROOT%\setup.bat"
+  pause
+  exit /b 1
+)
+
+rem Install deps if node_modules is missing
+if not exist "%APP_ROOT%\node_modules" (
+  echo.
+  echo node_modules missing. Running npm install...
+  echo.
+  pushd "%APP_ROOT%"
+  call npm install
+  popd
   if errorlevel 1 (
     echo.
-    echo Setup failed. See error above. Press any key to close.
+    echo npm install failed. See error above. Press any key to close.
     pause >nul
     exit /b 1
   )
 )
 
 rem Run the server. Ctrl+C in this window stops it.
-"%APP_ROOT%\bun.exe" run "%APP_ROOT%\server.ts"
+pushd "%APP_ROOT%"
+call npm run start
+popd
 
 endlocal

@@ -1,7 +1,7 @@
-import type { Database } from "bun:sqlite";
+import type { Database } from "./sqlite.ts";
 import { unlink } from "node:fs/promises";
 
-import { openIndex, setMeta } from "./sqlite.ts";
+import { countRows, openIndex, setMeta } from "./sqlite.ts";
 import { walkCatalog, parseResourceFolderName, type WalkedFile } from "./walker.ts";
 import { parseSpec, type ParsedSpec } from "./parser.ts";
 import type { LineageAnnotation } from "./lineage.ts";
@@ -297,7 +297,7 @@ async function runScan(
 
     const existing = selectFile.get(file.path);
     const unchanged =
-      existing !== null &&
+      existing != null &&
       existing.mtime === file.mtimeMs &&
       existing.size === file.size &&
       existing.parse_status === "ok";
@@ -359,8 +359,8 @@ async function runScan(
  * to re-open via `openIndex()` afterwards.
  */
 export async function clearIndexFiles(currentDb: Database): Promise<{ apis: number; files: number; paths: string[] }> {
-  const apis = currentDb.query<{ c: number }, []>(`SELECT count(*) as c FROM apis`).get()?.c ?? 0;
-  const files = currentDb.query<{ c: number }, []>(`SELECT count(*) as c FROM files`).get()?.c ?? 0;
+  const apis = countRows(currentDb, "apis");
+  const files = countRows(currentDb, "files");
 
   const dbFilename = currentDb.filename;
   currentDb.close();

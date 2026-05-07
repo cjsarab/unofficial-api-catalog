@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Splitter from "./Splitter.svelte";
+  import { STORAGE_KEYS, getStored, setStored } from "../lib/storage.ts";
 
   type Props = {
     topBar: Snippet;
@@ -39,34 +40,25 @@
     showRight: boolean;
     showResponse: boolean;
   };
-  const STORAGE_KEY = "acx:layout:v1";
-
   let initialised = $state(false);
 
   function restore() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-      const p = JSON.parse(saved) as Partial<Persist>;
-      if (typeof p.leftWidth === "number") leftWidth = clamp(p.leftWidth, MIN_LEFT, MAX_LEFT);
-      if (typeof p.rightWidth === "number") rightWidth = clamp(p.rightWidth, MIN_RIGHT, MAX_RIGHT);
-      if (typeof p.responseHeight === "number") responseHeight = clamp(p.responseHeight, MIN_RESPONSE, window.innerHeight * MAX_RESPONSE_PCT);
-      if (typeof p.showLeft === "boolean") showLeft = p.showLeft;
-      if (typeof p.showRight === "boolean") showRight = p.showRight;
-      if (typeof p.showResponse === "boolean") showResponse = p.showResponse;
-    } catch {
-      // ignore bad saved state
-    }
+    const p = getStored<Partial<Persist>>(STORAGE_KEYS.layout, {});
+    if (typeof p.leftWidth === "number") leftWidth = clamp(p.leftWidth, MIN_LEFT, MAX_LEFT);
+    if (typeof p.rightWidth === "number") rightWidth = clamp(p.rightWidth, MIN_RIGHT, MAX_RIGHT);
+    if (typeof p.responseHeight === "number") responseHeight = clamp(p.responseHeight, MIN_RESPONSE, window.innerHeight * MAX_RESPONSE_PCT);
+    if (typeof p.showLeft === "boolean") showLeft = p.showLeft;
+    if (typeof p.showRight === "boolean") showRight = p.showRight;
+    if (typeof p.showResponse === "boolean") showResponse = p.showResponse;
   }
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   function persistLater() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const snapshot: Persist = {
+      setStored<Persist>(STORAGE_KEYS.layout, {
         leftWidth, rightWidth, responseHeight, showLeft, showRight, showResponse,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      });
     }, 300);
   }
 
@@ -286,11 +278,11 @@
     border: 1px solid var(--border-strong);
     padding: var(--space-5) var(--space-6);
     max-width: 420px;
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   .help-card .label {
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-bottom: var(--space-3);
@@ -298,16 +290,16 @@
   .help-card dl {
     display: grid;
     grid-template-columns: 100px 1fr;
-    gap: 4px var(--space-3);
+    gap: var(--space-1) var(--space-3);
     margin: 0 0 var(--space-4);
   }
   .help-card dt {
     font-family: var(--font-mono);
     background: var(--bg-raised);
     border: 1px solid var(--border);
-    padding: 1px 6px;
+    padding: 1px var(--space-1-5);
     text-align: center;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .help-card dd { margin: 0; align-self: center; color: var(--fg); }
   .help-card dd .dim { color: var(--fg-dim); font-size: 10.5px; }
@@ -316,7 +308,7 @@
     background: var(--bg-raised);
     color: var(--fg);
     border: 1px solid var(--border-strong);
-    padding: 5px 12px;
+    padding: 5px var(--space-3);
     cursor: pointer;
     width: 100%;
   }

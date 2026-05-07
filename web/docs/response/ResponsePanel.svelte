@@ -101,11 +101,11 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: 4px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
     color: var(--fg-dim);
   }
   .status { font-weight: bold; }
@@ -116,8 +116,8 @@
   .duration, .sending { color: var(--fg-dim); }
   .sep { color: var(--fg-dim); opacity: 0.5; }
   .method {
-    padding: 1px 6px;
-    font-size: 11px;
+    padding: 1px var(--space-1-5);
+    font-size: var(--fs-sm);
     font-weight: bold;
   }
   .method-get    { background: var(--method-get-bg); color: var(--method-get-fg); }
@@ -132,14 +132,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
-    max-width: 50ch;
+    max-width: 150ch;
   }
   .banner {
     background: var(--danger-bg);
     color: var(--danger);
     border: 1px solid var(--danger-border);
-    padding: 1px 8px;
-    font-size: 11px;
+    padding: 1px var(--space-2);
+    font-size: var(--fs-sm);
   }
   .spacer { flex: 1; }
   .tabs { display: flex; }
@@ -148,7 +148,7 @@
     background: transparent;
     color: var(--fg-dim);
     border: none;
-    padding: 4px 10px;
+    padding: var(--space-1) var(--space-2-5);
     cursor: pointer;
     border-bottom: 2px solid transparent;
   }
@@ -163,8 +163,8 @@
     color: var(--fg-dim);
     border: none;
     cursor: pointer;
-    padding: 0 8px;
-    font-size: 16px;
+    padding: 0 var(--space-2);
+    font-size: var(--fs-lg);
   }
   .clear:hover { color: var(--accent); }
   .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }

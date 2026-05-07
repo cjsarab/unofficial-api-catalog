@@ -1,8 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { protect, unprotect } from "./dpapi.ts";
-
 export interface SecretStore {
   setSecret(key: string, value: string): void;
   getSecret(key: string): string | null;
@@ -10,7 +8,11 @@ export interface SecretStore {
   listSecretKeys(): string[];
 }
 
-// On-disk shape: { "<caller-chosen key>": "<base64 DPAPI ciphertext>" }
+// On-disk shape: { "<caller-chosen key>": "<plaintext value>" }.
+// Secrets used to be DPAPI-encrypted; the trust model is now "single-user
+// localhost desktop app with secrets in a gitignored repo file" and the
+// encryption layer was removed. The on-disk path (data/secrets.json) is
+// covered by .gitignore via both `/data/*` and `secrets.json` rules.
 type SecretMap = Record<string, string>;
 
 export function createSecretStore(filePath: string): SecretStore {
@@ -58,15 +60,13 @@ export function createSecretStore(filePath: string): SecretStore {
   return {
     setSecret(key, value) {
       const map = load();
-      map[key] = protect(value).toString("base64");
+      map[key] = value;
       flush();
     },
 
     getSecret(key) {
       const map = load();
-      const b64 = map[key];
-      if (b64 === undefined) return null;
-      return unprotect(Buffer.from(b64, "base64"));
+      return map[key] ?? null;
     },
 
     deleteSecret(key) {

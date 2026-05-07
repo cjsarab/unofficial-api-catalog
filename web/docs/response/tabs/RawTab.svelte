@@ -18,9 +18,6 @@
   // 1MB is fine for an O(n) text walk on modern browsers.
   const TOKENIZE_MAX_BYTES = 1024 * 1024;
 
-  let prettyOn = $state(true);
-  let lineNumbersOn = $state(false);
-  let treeOn = $state(true);
   let showAll = $state(false);
 
   const isJson = $derived(isJsonContentType(contentType));
@@ -60,11 +57,11 @@
       return `Binary — ${bodyText.length} bytes. First 512 bytes:\n\n${hexHead(bodyText, 512)}`;
     }
     const source = isTooBig && !showAll ? bodyText.slice(0, HEAD_SLICE_BYTES) : bodyText;
-    // Pretty is independent of tokenize: JSON.stringify is fast even at
-    // multi-MB. Only short-circuit when the body isn't JSON or pretty is off.
-    // (If `source` is a head-slice of truncated JSON, the parse below throws
-    // and we fall back to showing the raw slice.)
-    if (!isJson || !prettyOn) return source;
+    // Always pretty-print JSON in the flat-text fallback (head-sliced or
+    // unparseable bodies). JSON.stringify is fast even at multi-MB, and the
+    // tree handles every other case. If `source` is a truncated head-slice,
+    // the parse below throws and we fall back to the raw slice.
+    if (!isJson) return source;
     try {
       return JSON.stringify(JSON.parse(source), null, 2);
     } catch {
@@ -74,14 +71,6 @@
 
   const tokens = $derived(isJson && !tokensTooBig ? tokenize(displayText) : null);
 
-  const lineNumberColumn = $derived.by(() => {
-    const n = displayText.split("\n").length;
-    // Build a single string "1\n2\n3...\nN" for the gutter.
-    const out: string[] = new Array(n);
-    for (let i = 0; i < n; i++) out[i] = String(i + 1);
-    return out.join("\n");
-  });
-
   function copy() {
     navigator.clipboard?.writeText(displayText).catch(() => { /* best effort */ });
   }
@@ -89,15 +78,6 @@
 
 <section class="raw">
   <header>
-    <label>
-      <input type="checkbox" bind:checked={treeOn} disabled={!treeAvailable} /> Tree
-    </label>
-    <label>
-      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || (treeOn && treeAvailable)} /> Pretty
-    </label>
-    <label>
-      <input type="checkbox" bind:checked={lineNumbersOn} disabled={treeOn && treeAvailable} /> Line numbers
-    </label>
     {#if tokensTooBig}
       <span class="note" title="Highlighting disabled to keep the panel responsive on large bodies.">highlighting off (large body)</span>
     {/if}
@@ -113,15 +93,12 @@
     <button onclick={copy} aria-label="Copy body">Copy</button>
   </header>
 
-  {#if treeOn && treeAvailable}
+  {#if treeAvailable}
     <div class="body tree">
       <JsonTree value={parsedJson as Json} />
     </div>
   {:else}
-    <div class="body" class:with-gutter={lineNumbersOn}>
-      {#if lineNumbersOn}
-        <pre class="gutter">{lineNumberColumn}</pre>
-      {/if}
+    <div class="body">
       <pre class="text">{#if tokens}{#each tokens as t}<span class="tk-{t.kind}">{t.text}</span>{/each}{:else}{displayText}{/if}</pre>
     </div>
   {/if}
@@ -133,7 +110,7 @@
     flex-direction: column;
     height: 100%;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--fs-base);
   }
   header {
     display: flex;
@@ -143,18 +120,17 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg-panel);
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
-  header label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
   header .spacer { flex: 1; }
   header .meta { color: var(--fg-dim); }
-  header .note { color: var(--fg-dim); font-size: 10px; }
+  header .note { color: var(--fg-dim); font-size: var(--fs-xs); }
   header button {
     font: inherit;
     background: transparent;
     color: var(--fg-dim);
     border: 1px solid var(--border);
-    padding: 2px 8px;
+    padding: var(--space-0) var(--space-2);
     cursor: pointer;
   }
   header button:hover { color: var(--accent); border-color: var(--accent); }
@@ -175,27 +151,6 @@
     flex: 1;
     white-space: normal;
   }
-  .with-gutter {
-    display: grid;
-    grid-template-columns: auto 1fr;
-  }
-  .gutter {
-    color: var(--fg-dim);
-    user-select: none;
-    padding-right: var(--space-3);
-    border-right: 1px solid var(--border);
-    margin: 0;
-    margin-right: var(--space-3);
-  }
   .text { margin: 0; padding: 0; }
-
-  /* Theme-aware token colours. */
-  :global(.tk-key)    { color: var(--accent); }
-  :global(.tk-string) { color: var(--fg); }
-  :global(.tk-number) { color: color-mix(in srgb, var(--accent) 60%, var(--fg) 40%); }
-  :global(.tk-bool)   { color: color-mix(in srgb, var(--accent) 50%, var(--fg) 50%); }
-  :global(.tk-null)   { color: var(--fg-dim); }
-  :global(.tk-punct)  { color: var(--fg-dim); }
-  :global(.tk-raw)    { color: var(--fg); }
-  :global(.tk-ws)     { white-space: pre; }
+  /* JSON syntax-highlight token colours live in web/styles/json-syntax.css */
 </style>

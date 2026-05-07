@@ -1,6 +1,36 @@
 # API Catalog Explorer — Design Plan
 
-> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 complete** (items 1–7): DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal, full Response Panel. Item 8 (Request History) was implemented and merged 2026-04-27 then reverted at the user's call as out of scope. **Backlog cleared 2026-04-29** — 9 items closed (B-001..B-004, QOL-001..QOL-003, UX-001, UX-002); see `BACKLOG.md` closed section. Next: Phase 3 — column basket, SQL paste, set-cover matcher, lineage graph, theme switcher UI.
+> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 complete** (items 1–7): plaintext secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal, full Response Panel. Item 8 (Request History) was implemented and merged 2026-04-27 then reverted at the user's call as out of scope. **Backlog cleared 2026-04-29** — 9 items closed (B-001..B-004, QOL-001..QOL-003, UX-001, UX-002); see `BACKLOG.md` closed section. **Pivot 2026-05-01** — runtime moved from portable Bun to plain Node + npm; DPAPI replaced with plaintext secrets; app data moved from `%APPDATA%` to `./data/`. See "Pivot 2026-05-01" section below for the full delta. Next: Phase 3 — column basket, SQL paste, set-cover matcher, lineage graph, theme switcher UI.
+
+## Pivot 2026-05-01 — Bun → Node, DPAPI → plaintext, APPDATA → ./data/
+
+The "zero-install portable bundle" model (ship `bun.exe` + DPAPI-encrypted secrets in `%APPDATA%`) was replaced with a "clone-and-run" model. The user determined the bundle approach was overkill for the actual user population (the user themselves + a handful of trusted colleagues). The app is now a plain Node 22.5+ TypeScript project run via `tsx` — `npm install && npm run dev` from a fresh clone.
+
+**What changed:**
+
+- **Runtime**: Bun → Node 22.5+ LTS (24 in development). TypeScript runs via `tsx` (no precompile step for the server).
+- **HTTP server**: `Bun.serve` → `@hono/node-server`'s `serve({ fetch, port })`. The existing `(req: Request) => Response` route handlers were unchanged — only the bootstrap in `server.ts` swapped.
+- **SQLite driver**: `bun:sqlite` → `node:sqlite` (Node 22.5+ experimental builtin). FTS5 still bundled. A thin wrapper in `server/indexer/sqlite.ts` preserves the previous `db.query<T, A>(sql).get(...)` API so the ~50 callsites across the indexer + routes didn't need rewriting. node:sqlite is loaded via `createRequire` rather than a static import to work around a Vite 5 known-builtins gap.
+- **Test runner**: `bun:test` → `vitest`. Same `describe/test/expect` shape — most files just needed an import-line swap.
+- **Secrets**: DPAPI (`server/auth/dpapi.ts`) deleted. `server/auth/secrets.ts` rewritten to store values plaintext in `data/secrets.json`. The `SecretStore` interface is unchanged so every consumer (env store, Ethos auth, proxy) keeps working with no edits. Trust model is now "single-user localhost desktop app" — equivalent to a `.env` file in any other Node project.
+- **App data location**: `%APPDATA%\api-catalog-explorer\` → repo-local `./data/`. `data/` is gitignored except for a `.gitkeep`. `secrets.json` is double-protected by an explicit pattern in `.gitignore`.
+- **Distribution**: zip-with-bun-runtime model dropped. New flow is `git clone <repo> && npm install && npm run dev`. `launch.bat` and `dev.bat` are kept as Windows-friendly thin wrappers around `npm run start` / `npm run dev`. `setup.bat` is gone.
+- **Bun.* call sites** in routes/validators (`Bun.file`, `Bun.spawn`, `Bun.version`, `import.meta.dir`) replaced with their Node equivalents (`fs/promises.readFile`, `child_process.spawn`, `process.version`, `dirname(fileURLToPath(import.meta.url))`).
+
+**What didn't change:**
+
+- All Svelte UI files. The frontend is unaware of the runtime swap.
+- All route handlers under `server/routes/*.ts`. Same `(req: Request) => Response` Web-API shape works under Hono.
+- All env/auth/proxy callers — they talk to `SecretStore` and `EnvironmentStore` interfaces, not to DPAPI directly.
+- The catalog drop-in flow. Users still supply their own `APICatalog/` folder via the first-run wizard.
+- The on-disk shape of `config.json`, `environments.json`, `index.sqlite`. Existing data from a `%APPDATA%` install can be moved into `./data/` to keep continuity (except `secrets.json`, whose old DPAPI ciphertexts are unreadable — re-enter API keys after the move).
+
+**Test count**: 211 → 204 (deleted 7 DPAPI round-trip tests; rest of the suite unchanged in spirit, just the import path swapped).
+
+**Affected paragraphs in this document** (read with the pivot in mind):
+- "Architecture decision (locked in)" still describes the layout, but **runtime/shell** is Node + npm, not portable Bun. **Index** uses `node:sqlite`, not `bun:sqlite`. **Secrets** are plaintext in `./data/secrets.json`, not DPAPI.
+- "Distribution" is now `git clone` + `npm install`, not a zip with `bun.exe` and `setup.bat`.
+- "Try-APIs" — environment-profile API-key field is plaintext on disk; everything else (region, JWT exchange, verb safety) is unchanged.
 
 ## Context
 
@@ -80,7 +110,9 @@ Physical columns (e.g. `SPRIDEN_ID`, `FA.YEAR`) are a primary user-facing entity
 
 - **Partial catalogs must work.** A user may drop only a subset of product-family folders (e.g. just `BannerBusAPIs/` and `BannerEedmAPIs/`), or even a subset of individual API folders within a family. The index/search/lineage features must degrade gracefully — unresolved lineage edges (e.g. reference to an EEDM resource whose folder isn't present) must not crash the app; they should render as "not installed" rather than broken links. The app is also expected to be robust enough to handle the full catalog.
 
-## Distribution constraints (from user)
+## Distribution constraints — original pre-pivot design (now obsolete)
+
+> **2026-05-01 pivot**: this section is preserved as historical context for the *original* design. The constraints listed here (corporate IT blocks `.exe`s, no per-user install, etc.) drove the zero-install Bun-bundle approach. Post-pivot, distribution is `git clone && npm install && npm run dev` for a small known set of users on machines that already have Node — see the "Pivot 2026-05-01" section near the top of this document. The paragraphs below remain verbatim only as a record of what was originally considered.
 
 - **Windows-only** target for launch (single OS; use DPAPI (`CryptProtectData`) for at-rest secret encryption stored in our own `secrets.json`, `%APPDATA%` for local data, `.bat` launchers, CRLF tolerant).
 - **No per-user installation**. Users can't (or won't) install Node. Users won't pay for signing certs. No self-hosted server option.
