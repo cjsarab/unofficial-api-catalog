@@ -1,12 +1,18 @@
 # Runtime + build artefacts
-bun.exe
-bun-*.zip
 node_modules/
-dist/
 build/
 .svelte-kit/
 coverage/
 .nyc_output/
+
+# dist/ is committed so corporate-locked machines (no .exe execution allowed,
+# i.e. AppLocker / WDAC) can run with `npm ci --omit=dev` + `npm run start` —
+# skipping vite/esbuild entirely. We do ignore the sourcemaps to keep the
+# committed artefact small.
+dist/**/*.map
+
+# Local scratch / throwaway dev artefacts (screenshots, notes, etc.)
+docs/throwaway/
 
 # User data (never commit)
 APICatalog/

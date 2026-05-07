@@ -1,12 +1,10 @@
 import type { EnvironmentStore } from "../environments/store.ts";
 import type { TokenCache } from "../auth/ethos.ts";
 import type { RouteHandler } from "../routes/types.ts";
-import { createEnvironmentStore } from "../environments/store.ts";
-import { createSecretStore } from "../auth/secrets.ts";
 import { createTokenCache } from "../auth/ethos.ts";
-import { SECRETS_PATH, ENVIRONMENTS_PATH } from "../config.ts";
 import { regionToBaseUrl } from "../environments/region.ts";
 import { loadConfig } from "../config-store.ts";
+import { getEnvironmentStore, getSecretStore } from "../stores.ts";
 
 export interface ProxyCompleteEvent {
   envId: string;
@@ -49,8 +47,8 @@ const DROP_EXACT = new Set([
 ]);
 const DROP_PREFIX = ["sec-fetch-", "proxy-"];
 
-// Response-side headers to strip. Bun's fetch has already decoded the body,
-// so advertising the upstream encoding would mislead the client.
+// Response-side headers to strip. fetch() has already decoded the body, so
+// advertising the upstream encoding would mislead the client.
 const RESPONSE_DROP = new Set(["content-encoding", "transfer-encoding"]);
 
 function shapeResponseHeaders(src: Headers, upstreamStatus: number): Headers {
@@ -215,14 +213,14 @@ export const handleEthosProxy: RouteHandler = async (req, url) => {
   currentBaseUrl = regionToBaseUrl(config.region);
 
   if (!ethosSingleton) {
-    const secrets = createSecretStore(SECRETS_PATH);
-    const envStore = createEnvironmentStore(ENVIRONMENTS_PATH, secrets);
+    const envStore = getEnvironmentStore();
+    const secrets = getSecretStore();
     const tokenCache = createTokenCache(envStore, secrets, () => currentBaseUrl);
     ethosSingleton = createEthosProxy({
       envStore,
       tokenCache,
       baseUrlGetter: () => currentBaseUrl,
-      onComplete: undefined, // wired in Phase 2 item 8 (request history)
+      onComplete: undefined, // reserved for a future history hook
     });
   }
   return ethosSingleton(req, url);

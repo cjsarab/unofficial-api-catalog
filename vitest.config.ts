@@ -10,7 +10,7 @@ export default defineConfig({
   // dev server — that root is intentionally narrower and not what we want for
   // tests.
   root: projectRoot,
-  // node:sqlite is a Node 22.5+ experimental builtin that Vite 5's
+  // node:sqlite is a Node 22.7+ experimental builtin that Vite/Vitest's
   // builtinModules check doesn't recognise (it's "only-prefixed" — never
   // appears in module.builtinModules without the `node:` prefix). Mark it
   // external in every place Vite/Vitest looks so neither the dep optimiser
