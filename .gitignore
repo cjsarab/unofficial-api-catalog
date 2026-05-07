@@ -1,12 +1,13 @@
 # Runtime + build artefacts
-bun.exe
-bun-*.zip
 node_modules/
 dist/
 build/
 .svelte-kit/
 coverage/
 .nyc_output/
+
+# Local scratch / throwaway dev artefacts (screenshots, notes, etc.)
+docs/throwaway/
 
 # User data (never commit)
 APICatalog/

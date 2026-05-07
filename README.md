@@ -26,11 +26,11 @@ npm run start
 
 To change the port (e.g. if 5757 clashes), set `PORT=5758` before invoking `npm run start` / `npm run dev`.
 
-Double-click `launch.bat` for a one-step `npm install` + `npm run start`. `dev.bat` does the same for `npm run dev`.
+If a fresh clone fails on `npm install` with "failed to remove some directories", delete `node_modules/` (close any editor/terminal that has it open first) and run `npm ci` instead — it installs strictly from `package-lock.json` and avoids the partial-install state that trips up `npm install` on Windows.
 
 ## First-run setup
 
-1. Launch via `npm run dev` (or `launch.bat`). Browser opens to the first-run wizard.
+1. Launch via `npm run dev`. Browser opens to the first-run wizard.
 2. Point the wizard at your local `APICatalog` folder. The app indexes the YAML specs into `./data/index.sqlite` (~2 minutes for the full ~4,400-spec catalog).
 3. Open Settings → Environments and add an Ellucian environment profile with its API key. The key is stored plaintext in `./data/secrets.json` (gitignored).
 
@@ -56,8 +56,6 @@ data/
 
 ```
 api-catalog-explorer/
-├─ launch.bat           ← npm install + npm run start (double-click)
-├─ dev.bat              ← npm run dev
 ├─ server.ts            ← @hono/node-server entry: serves the SPA + proxies Ethos
 ├─ package.json
 ├─ tsconfig.json
