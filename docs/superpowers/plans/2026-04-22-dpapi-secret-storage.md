@@ -1,5 +1,7 @@
 # DPAPI Secret Storage Implementation Plan
 
+> **Obsolete — DPAPI was removed in the 2026-05-01 pivot.** Secrets now live plaintext in `./data/secrets.json` (gitignored, single-user localhost trust model). Plan preserved as historical record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Windows DPAPI-backed secret storage so Phase 2's OAuth client_secret values can persist across launches without plaintext-on-disk.

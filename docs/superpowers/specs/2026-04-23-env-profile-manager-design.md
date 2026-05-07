@@ -1,7 +1,9 @@
 # Environment Profile Manager — Design
 
+> **Partially obsolete — DPAPI references no longer apply.** The DPAPI integration described here was removed in the 2026-05-01 pivot; secret storage is now plaintext in `./data/secrets.json`. The rest of the env-profile design (CRUD, active-env, top-bar selector, region) is current.
+
 **Date:** 2026-04-23
-**Status:** Approved (pending implementation plan)
+**Status:** Shipped (Phase 2). DPAPI integration removed in 2026-05-01 pivot.
 **Phase:** 2 — Real API calls
 
 ## Goal

@@ -1,5 +1,7 @@
 # Environment Profile Manager Implementation Plan
 
+> **Partially obsolete — DPAPI references no longer apply.** The DPAPI integration described here was removed in the 2026-05-01 pivot; secret storage is now plaintext in `./data/secrets.json`. The rest of the plan (CRUD, active-env, top-bar selector) is current.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Settings → Environments CRUD + persisted active-env + top-bar selector, so Phase 2 can consume one configured Ellucian tenant environment. No token exchange, no proxy, no test-connection — those are separate Phase 2 slices.

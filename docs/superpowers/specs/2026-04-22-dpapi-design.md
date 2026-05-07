@@ -1,7 +1,9 @@
 # DPAPI Secret Storage — Design
 
+> **Obsolete — DPAPI was removed in the 2026-05-01 pivot.** Secrets now live plaintext in `./data/secrets.json` (gitignored, single-user localhost trust model). Spec preserved as design history.
+
 **Date:** 2026-04-22
-**Status:** Approved (pending implementation plan)
+**Status:** Shipped (Phase 2), then removed in the 2026-05-01 pivot.
 **Phase:** 2 — Real API calls
 
 ## Goal

@@ -47,8 +47,8 @@ const DROP_EXACT = new Set([
 ]);
 const DROP_PREFIX = ["sec-fetch-", "proxy-"];
 
-// Response-side headers to strip. Bun's fetch has already decoded the body,
-// so advertising the upstream encoding would mislead the client.
+// Response-side headers to strip. fetch() has already decoded the body, so
+// advertising the upstream encoding would mislead the client.
 const RESPONSE_DROP = new Set(["content-encoding", "transfer-encoding"]);
 
 function shapeResponseHeaders(src: Headers, upstreamStatus: number): Headers {
@@ -220,7 +220,7 @@ export const handleEthosProxy: RouteHandler = async (req, url) => {
       envStore,
       tokenCache,
       baseUrlGetter: () => currentBaseUrl,
-      onComplete: undefined, // wired in Phase 2 item 8 (request history)
+      onComplete: undefined, // reserved for a future history hook
     });
   }
   return ethosSingleton(req, url);

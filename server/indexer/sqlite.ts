@@ -5,14 +5,14 @@ import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
 
 import { INDEX_PATH } from "../config.ts";
 
-// node:sqlite is a Node 22.5+ experimental builtin. Vite 5's known-builtins
-// list doesn't include it (it's the rare builtin that's "only-prefixed" —
-// never appears in `module.builtinModules` without the `node:` prefix), so a
-// static value-import from "node:sqlite" causes Vite/Vitest's transformer to
-// strip the prefix and fail with "Failed to load url sqlite". The type-only
-// import above is erased before runtime; the value is loaded via
-// createRequire() which bypasses Vite's static analysis. Drop both halves
-// once Vite recognises node:sqlite natively.
+// node:sqlite is a Node 22.7+ experimental builtin. Vite/Vitest's
+// known-builtins list doesn't include it — it's the rare builtin that's
+// "only-prefixed" and never appears in `module.builtinModules` without the
+// `node:` prefix — so a static value-import from "node:sqlite" causes
+// the transformer to strip the prefix and fail with "Failed to load url
+// sqlite". The type-only import above is erased before runtime; the value
+// is loaded via createRequire() which bypasses Vite's static analysis.
+// Drop both halves once Vite recognises node:sqlite natively.
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 

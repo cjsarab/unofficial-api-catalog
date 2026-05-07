@@ -3158,9 +3158,9 @@ Expected: exit 0. Warnings about pre-existing unused CSS are OK; a new `ERROR` i
 
 - [ ] **Step 5: Manual smoke against a running app**
 
-Start both servers (in two terminals, or via the existing `dev.bat`):
-- `./bun.exe run dev`    (backend at http://localhost:5757)
-- `./bun.exe x vite`     (frontend at http://localhost:5173)
+Start both servers via `npm run dev` (which runs both concurrently):
+- backend at http://localhost:5757
+- frontend at http://localhost:5173
 
 Open http://localhost:5173 in a browser. Check each:
 

@@ -14,7 +14,7 @@ The "zero-install portable bundle" model (ship `bun.exe` + DPAPI-encrypted secre
 - **Test runner**: `bun:test` → `vitest`. Same `describe/test/expect` shape — most files just needed an import-line swap.
 - **Secrets**: DPAPI (`server/auth/dpapi.ts`) deleted. `server/auth/secrets.ts` rewritten to store values plaintext in `data/secrets.json`. The `SecretStore` interface is unchanged so every consumer (env store, Ethos auth, proxy) keeps working with no edits. Trust model is now "single-user localhost desktop app" — equivalent to a `.env` file in any other Node project.
 - **App data location**: `%APPDATA%\api-catalog-explorer\` → repo-local `./data/`. `data/` is gitignored except for a `.gitkeep`. `secrets.json` is double-protected by an explicit pattern in `.gitignore`.
-- **Distribution**: zip-with-bun-runtime model dropped. New flow is `git clone <repo> && npm install && npm run dev`. `launch.bat` and `dev.bat` are kept as Windows-friendly thin wrappers around `npm run start` / `npm run dev`. `setup.bat` is gone.
+- **Distribution**: zip-with-bun-runtime model dropped. New flow is `git clone <repo> && npm install && npm run dev`. The `setup.bat` / `launch.bat` / `dev.bat` launchers are gone.
 - **Bun.* call sites** in routes/validators (`Bun.file`, `Bun.spawn`, `Bun.version`, `import.meta.dir`) replaced with their Node equivalents (`fs/promises.readFile`, `child_process.spawn`, `process.version`, `dirname(fileURLToPath(import.meta.url))`).
 
 **What didn't change:**
@@ -119,7 +119,7 @@ Physical columns (e.g. `SPRIDEN_ID`, `FA.YEAR`) are a primary user-facing entity
 - **Corporate IT blocks arbitrary `.exe` files** — any binary requires IT approval via source-code review, done once per release.
 - Repo hosting (public github.com vs. an internal GitHub/GitLab/Bitbucket) is unresolved and IT-dependent; the plan is hosting-agnostic.
 
-**Design consequence — zero-install portable bundle**: ship a zip containing the official Bun runtime + our app source. The user unzips and double-clicks `launch.bat`; Bun serves a local HTTP server + Svelte SPA and opens the default Windows browser. IT reviews readable TypeScript plus a well-known open-source runtime once. No per-machine install, no paid cert, no hosted infrastructure.
+**Design consequence — zero-install portable bundle (pre-pivot)**: the original plan was to ship a zip containing the official Bun runtime + the app source so the user could unzip and double-click `launch.bat`. Replaced 2026-05-01 with `git clone && npm install && npm run dev` — see the Pivot section at the top of this file.
 
 ## Target users (from user)
 
@@ -136,6 +136,8 @@ Design principles that fall out:
 
 ## Architecture decision (locked in)
 
+> **Pre-pivot — superseded by the "Pivot 2026-05-01" section at the top of this file.** The bullets below describe the original Bun + DPAPI + portable-bundle design; the project now runs on Node + npm + plaintext secrets in `./data/`. Preserved as historical design record.
+
 - **Runtime & shell**: portable Bun runtime (~50 MB, single `bun.exe`), shipped inside the zip alongside app code. No installation; user unzips and runs.
 - **Frontend**: Svelte (compiled to static assets; small runtime, fast hydration, good fit for retro UI + performance goals).
 - **Backend**: Bun's built-in `Bun.serve()` HTTP server on a random free local port. Launcher starts the server and auto-opens the default Windows browser.
@@ -146,6 +148,8 @@ Design principles that fall out:
 - **Catalog path**: first-run folder picker; choice stored in `%APPDATA%\api-catalog-explorer\config.json`. Partial catalogs detected and surfaced ("14 of 20 families installed — Lineage edges to missing families rendered as 'not installed'").
 
 ## Distribution
+
+> **Pre-pivot — superseded by the "Pivot 2026-05-01" section at the top of this file.** Distribution is now `git clone && npm install && npm run start|dev`, no zip and no bundled runtime.
 
 - Deliverable: `api-catalog-explorer.zip` (~50–70 MB)
   - Contents: `bun.exe`, `launch.bat`, `server.js` (bundled + minified but readable), `web/` (static Svelte assets), `README.md`, `LICENSE`.
@@ -272,8 +276,8 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
 
 ## Try-APIs (locked in)
 
-- **Environment profiles** (tenant-level, shared across all APIs). Stored in `%APPDATA%\api-catalog-explorer\environments.json`; secrets DPAPI-encrypted in a sibling `secrets.json`, never on disk plaintext.
-- **Per-profile fields**: name, production flag, Ellucian API key (DPAPI-encrypted in the sibling `secrets.json`). Per-request headers live on the Try panel — environments carry credentials + connection, not content negotiation. The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests.
+- **Environment profiles** (tenant-level, shared across all APIs). Stored in `./data/environments.json`; API keys in a sibling `./data/secrets.json` (plaintext, gitignored — single-user localhost trust model).
+- **Per-profile fields**: name, production flag, Ellucian API key (plaintext in `./data/secrets.json`). Per-request headers live on the Try panel — environments carry credentials + connection, not content negotiation. The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests.
 - **Region is workspace-level, not per-env**: stored in `config.json` as `region: "us" | "ca" | "eu" | "ap"` (US / Canada / Europe / Asia-Pacific). One value for all envs — all tenants a given user works with are in the same region. The base URL and auth URL are derived from region: `https://integrate.elluciancloud.{com|ca|ie|com.au}` and `${baseUrl}/auth` respectively.
 - **Top-bar selector**: one-click switch between profiles. Red dot indicator on production envs.
 - **Auth**:
@@ -344,6 +348,8 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
 
 ## Implementation phasing
 
+> **Pre-pivot — preserved as historical record of the original phasing.** Phase 1 + Phase 2 shipped on Bun; the 2026-05-01 pivot replaced the runtime details (Bun → Node, DPAPI → plaintext, portable bundle → clone-and-run) without changing the feature shape. Phase 3 is still pending.
+
 A three-phase build so the tool delivers value early. Each phase is releasable on its own.
 
 **Phase 1 — MVP for the PL/SQL vets** (the column-workflow crowd)
@@ -380,7 +386,7 @@ A three-phase build so the tool delivers value early. Each phase is releasable o
 
 Assume a `fixtures/APICatalog/` subset of ~50 specs is checked into the repo for tests (NOT the full 4,377 — just representative samples: one from each family + known-difficult lineage expressions from `persons`, `academic-catalogs`, `educational-institutions`).
 
-**Unit tests** (Bun's built-in test runner):
+**Unit tests** (originally Bun's test runner; now vitest post-pivot):
 - `tokenizer.test.ts` — every sample of `x-lineageReferenceObject` and `x-lineageLookupReferenceObject` from the real catalog (including the dirty-data cases: `' PLD.HOURS'`, `'CSM.MONDAY, etc)'`, `GTVLGSX_GUID(GTVLGSX) where SPBPERS_SEX = GTVLGSX_CODE`, `(SOBODTE_TERM_CODE||'(OLR)'||SOBODTE_INSM_CODE)`).
 - `setcover.test.ts` — greedy matcher on fabricated baskets; asserts minimum-API-set output matches known answers.
 - `validator.test.ts` — catalog-path validator accepts good folders, rejects/reports bad ones (empty, subfolder-pointed, non-YAML, zip).
@@ -406,6 +412,8 @@ Assume a `fixtures/APICatalog/` subset of ~50 specs is checked into the repo for
 - UI remains responsive during indexing (workers handle parsing off the main thread).
 
 ## Critical files to create
+
+> **Pre-pivot — preserved as the original file plan.** Several entries below (`launch.bat`, `bun.exe`, `server/auth/dpapi.ts`) describe artefacts that no longer exist post-pivot. The current top-of-tree layout is documented in `README.md`.
 
 Top of tree (`api-catalog-explorer/`):
 - `launch.bat` — entrypoint; invokes `bun.exe server.ts` with a free port.
@@ -478,7 +486,7 @@ User-chosen panel sizes and collapse states persist to browser `localStorage` un
 
 All ten Phase-1 tasks are done. Summary of what works end-to-end as of the end of this session:
 
-- **Zero-install launch**: `launch.bat` downloads `bun.exe` on first run; subsequent launches start the server on fixed port **5757** and open the default Windows browser. Clean shutdown handlers close the SQLite handle on SIGINT/SIGTERM/SIGHUP/uncaught exceptions so WAL is checkpointed properly.
+- **Zero-install launch (pre-pivot)**: originally `launch.bat` downloaded `bun.exe` on first run. Post-pivot the launchers are gone — `npm run start` runs the server on fixed port **5757** and opens the default Windows browser. Clean shutdown handlers close the SQLite handle on SIGINT/SIGTERM/SIGHUP/uncaught exceptions so WAL is checkpointed properly.
 - **First-run wizard**: native IFileDialog folder picker (modern Windows style) via `server/validation/pick-folder.ps1`, live validation preview, recent-paths, progress bar over Server-Sent Events during indexing, graceful handling of zip-file-mistakes, subfolder-mistakes, and missing paths.
 - **Indexer**: walker + tolerant YAML parser (handles Ellucian's `\<NL>` line-continuation quirk and duplicate-key specs), full lineage tokenizer covering the observed DSL (sentinels, bare columns, table-qualified, `or`-alternatives, `where`-clauses, `||`-concatenation, tuples, dirty-text), SQLite schema with FTS5 tables (not yet queried — dead infrastructure, see known issues), stale-file cleanup on re-scan, `/api/index/clear` reset endpoint. ~4,377 specs index in ~2 minutes serial; incremental re-scan of an unchanged catalog is ~3 s.
 - **UI shell**: Toad-style layout with resizable splitters, four themes (phosphor/amber/dos/beige) with live-switching, keyboard shortcuts (Ctrl+B/./\\, F1 help, Ctrl+K palette), layout persisted to localStorage, browser back/forward works via History API, deep URLs bookmarkable.
