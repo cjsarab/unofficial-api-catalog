@@ -6,7 +6,28 @@ See `PLAN.md` for the full design plan.
 
 ## Running the app
 
-**Prereqs**: Node.js 22.5+ (24 LTS recommended) on Windows. Get it from <https://nodejs.org/>.
+**Prereqs**: Node.js 22.7+ (24 LTS recommended) on Windows. Get it from <https://nodejs.org/>. The server runs `.ts` files directly via Node's built-in TypeScript stripping, which lands on-by-default in 22.7.
+
+There are two install paths depending on what your machine allows.
+
+### Path A — run only (works on locked-down corporate Windows)
+
+For end users who just want to run the app. No build tools, no native binaries, no `.exe` from npm — only the two pure-JS production deps and Node itself.
+
+```
+git clone https://github.com/cjsarab/unofficial-api-catalog.git
+cd unofficial-api-catalog
+npm ci --omit=dev
+npm run start
+```
+
+`--omit=dev` skips Vite, Vitest, esbuild, tsx, Svelte, etc. — none of them are needed at runtime because the SPA is pre-built and committed under `dist/`. `npm run start` runs the server with plain `node server.ts` and serves the bundled SPA at <http://localhost:5757>.
+
+This is the path to use if your org locks down `.exe` execution from user folders (AppLocker / WDAC / strict EDR). Symptoms of that on the standard install: `npm ci` fails with `errno -4094` or `code 'UNKNOWN'` during esbuild's postinstall.
+
+### Path B — develop (full toolchain)
+
+For working on the code itself.
 
 ```
 git clone https://github.com/cjsarab/unofficial-api-catalog.git
@@ -15,28 +36,27 @@ npm ci
 npm run dev
 ```
 
-`npm ci` installs strictly from `package-lock.json` (faster and deterministic, and avoids the partial-install state that trips up `npm install` on Windows). Use it for fresh clones; reach for `npm install` only when intentionally adding/upgrading deps.
+`npm run dev` runs the API server (port 5757) and Vite (port 5173) side-by-side with HMR. Open <http://localhost:5173> for the dev experience.
 
-`npm run dev` runs the API server (port 5757) and Vite (port 5173) side-by-side with HMR. Open <http://localhost:5173> for the dev experience, or <http://localhost:5757> for the production-style preview after a `npm run build:web`.
+`npm ci` is preferred over `npm install` for fresh clones — faster and deterministic, and dodges the partial-install state that trips up `npm install` on Windows.
 
-For a production-style run (serves the built SPA at <http://localhost:5757>):
-
-```
-npm run build:web
-npm run start
-```
+### Common notes
 
 To change the port (e.g. if 5757 clashes), set `PORT=5758` before invoking `npm run start` / `npm run dev`.
 
-If `npm ci` still fails with "failed to remove some directories" on Windows, something is holding files open in `node_modules/`. Close any editor/Explorer window on the project, run `taskkill /F /IM node.exe`, then retry. If it persists, add the project folder to Windows Defender exclusions.
+`dist/` is committed so Path A doesn't need a build step. Run `npm run build:web` and stage the result before pushing any UI changes.
+
+If `npm ci` still fails with "failed to remove some directories" on Windows, something is holding files open in `node_modules/`. Close any editor/Explorer window on the project, run `taskkill /F /IM node.exe`, then retry.
 
 ## First-run setup
 
-1. Launch via `npm run dev`. Browser opens to the first-run wizard.
+1. Launch via `npm run dev` (or `npm run start`). Browser opens to the first-run wizard. If your environment blocks `powershell.exe` from auto-opening it, the server prints `(could not auto-open browser: …)` — open <http://localhost:5757> manually.
 2. Point the wizard at your local `APICatalog` folder. The app indexes the YAML specs into `./data/index.sqlite` (~2 minutes for the full ~4,400-spec catalog).
 3. Open Settings → Environments and add an Ellucian environment profile with its API key. The key is stored plaintext in `./data/secrets.json` (gitignored).
 
 You can also hand-edit `data/environments.json` and `data/secrets.json` directly if you prefer.
+
+**Folder-picker note**: the "Browse" button in the first-run wizard shells out to `powershell.exe -ExecutionPolicy Bypass -File pick-folder.ps1`. Some corporate group policies override `-ExecutionPolicy Bypass` and reject the script. If "Browse" fails, type the catalog path into the wizard manually, or hand-edit `data/config.json` to set `catalogPath`.
 
 ## App data
 
@@ -77,7 +97,7 @@ api-catalog-explorer/
 │  ├─ main.ts
 │  ├─ App.svelte
 │  ├─ shell/  sidebar/  docs/  settings/  styles/  lib/
-├─ dist/                ← built static assets (gitignored)
+├─ dist/                ← built static assets (committed; sourcemaps gitignored)
 ├─ fixtures/
 │  └─ APICatalog/       ← small representative subset for tests
 └─ tests/
@@ -98,7 +118,7 @@ npm run typecheck      # tsc --noEmit
 
 ## Design principles (summary)
 
-- **Clone-and-run** — `git clone && npm install && npm run dev`.
+- **Clone-and-run** — `git clone && npm ci [--omit=dev] && npm run start|dev`. No native binaries on the runtime path.
 - **Partial catalogs are first-class** — any subset of `*APIs/` families works.
 - **Columns are the primary entity** for PL/SQL-veteran users; every column token is clickable.
 - **Lineage has two layers** — API-to-API and field-to-DB-column; we surface both.
