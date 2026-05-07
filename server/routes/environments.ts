@@ -1,23 +1,9 @@
 import type { RouteHandler } from "./types.ts";
-import { SECRETS_PATH, ENVIRONMENTS_PATH } from "../config.ts";
-import { createSecretStore } from "../auth/secrets.ts";
-import {
-  createEnvironmentStore,
-  type EnvironmentStore,
-  type CreateEnvironmentInput,
-  type UpdateEnvironmentInput,
+import type {
+  CreateEnvironmentInput,
+  UpdateEnvironmentInput,
 } from "../environments/store.ts";
-
-// Singleton. Bun's FFI / DPAPI handles are effectively free; the real cost
-// is file reads on first call, which the store caches internally.
-let store: EnvironmentStore | undefined;
-function getStore(): EnvironmentStore {
-  if (!store) {
-    const secrets = createSecretStore(SECRETS_PATH);
-    store = createEnvironmentStore(ENVIRONMENTS_PATH, secrets);
-  }
-  return store;
-}
+import { getEnvironmentStore as getStore } from "../stores.ts";
 
 function err(message: string, status: number): Response {
   return Response.json({ error: message }, { status });

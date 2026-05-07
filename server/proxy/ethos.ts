@@ -1,12 +1,10 @@
 import type { EnvironmentStore } from "../environments/store.ts";
 import type { TokenCache } from "../auth/ethos.ts";
 import type { RouteHandler } from "../routes/types.ts";
-import { createEnvironmentStore } from "../environments/store.ts";
-import { createSecretStore } from "../auth/secrets.ts";
 import { createTokenCache } from "../auth/ethos.ts";
-import { SECRETS_PATH, ENVIRONMENTS_PATH } from "../config.ts";
 import { regionToBaseUrl } from "../environments/region.ts";
 import { loadConfig } from "../config-store.ts";
+import { getEnvironmentStore, getSecretStore } from "../stores.ts";
 
 export interface ProxyCompleteEvent {
   envId: string;
@@ -215,8 +213,8 @@ export const handleEthosProxy: RouteHandler = async (req, url) => {
   currentBaseUrl = regionToBaseUrl(config.region);
 
   if (!ethosSingleton) {
-    const secrets = createSecretStore(SECRETS_PATH);
-    const envStore = createEnvironmentStore(ENVIRONMENTS_PATH, secrets);
+    const envStore = getEnvironmentStore();
+    const secrets = getSecretStore();
     const tokenCache = createTokenCache(envStore, secrets, () => currentBaseUrl);
     ethosSingleton = createEthosProxy({
       envStore,
