@@ -9,11 +9,13 @@ See `PLAN.md` for the full design plan.
 **Prereqs**: Node.js 22.5+ (24 LTS recommended) on Windows. Get it from <https://nodejs.org/>.
 
 ```
-git clone <repo>
-cd api-catalog-explorer
-npm install
+git clone https://github.com/cjsarab/unofficial-api-catalog.git
+cd unofficial-api-catalog
+npm ci
 npm run dev
 ```
+
+`npm ci` installs strictly from `package-lock.json` (faster and deterministic, and avoids the partial-install state that trips up `npm install` on Windows). Use it for fresh clones; reach for `npm install` only when intentionally adding/upgrading deps.
 
 `npm run dev` runs the API server (port 5757) and Vite (port 5173) side-by-side with HMR. Open <http://localhost:5173> for the dev experience, or <http://localhost:5757> for the production-style preview after a `npm run build:web`.
 
@@ -26,7 +28,7 @@ npm run start
 
 To change the port (e.g. if 5757 clashes), set `PORT=5758` before invoking `npm run start` / `npm run dev`.
 
-If a fresh clone fails on `npm install` with "failed to remove some directories", delete `node_modules/` (close any editor/terminal that has it open first) and run `npm ci` instead — it installs strictly from `package-lock.json` and avoids the partial-install state that trips up `npm install` on Windows.
+If `npm ci` still fails with "failed to remove some directories" on Windows, something is holding files open in `node_modules/`. Close any editor/Explorer window on the project, run `taskkill /F /IM node.exe`, then retry. If it persists, add the project folder to Windows Defender exclusions.
 
 ## First-run setup
 
