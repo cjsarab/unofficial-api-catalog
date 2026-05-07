@@ -72,14 +72,69 @@ describe("version migration", () => {
   test("criteria chip kept even when leafPath not in new extracted filters, tagged undocumented", () => {
     const s1 = schema([{ name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` }]);
     const s2 = schema([{ name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"roles":[{"role":"Y"}]}` }]);
-    const state: FormState = { ...emptyState(), criteria: { names: { firstName: "James" } } };
+    const state: FormState = { ...emptyState(), criteria: { criteria: { names: { firstName: "James" } } } };
     const { nextState, warnings } = reprojectFormState(state, s1, s2);
-    expect(nextState.criteria).toEqual({ names: { firstName: "James" } });
+    expect(nextState.criteria).toEqual({ criteria: { names: { firstName: "James" } } });
     expect(warnings).toContainEqual(expect.objectContaining({
       kind: "criteria-undocumented",
+      paramName: "criteria",
       rootKey: "names",
       leafPath: "firstName",
     }));
+  });
+
+  test("multiple object-type query params each preserved in their own bucket", () => {
+    const s1 = schema([
+      { name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` },
+      { name: "personFilter", in: "query", schema: { type: "object" }, description: `?personFilter={"personFilter":"Y"}` },
+    ]);
+    const s2 = schema([
+      { name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` },
+      { name: "personFilter", in: "query", schema: { type: "object" }, description: `?personFilter={"personFilter":"Y"}` },
+    ]);
+    const state: FormState = {
+      ...emptyState(),
+      criteria: {
+        criteria: { names: { firstName: "James" } },
+        personFilter: { personFilter: { personFilter: "abc-123" } },
+      },
+    };
+    const { nextState } = reprojectFormState(state, s1, s2);
+    expect(nextState.criteria.criteria).toEqual({ names: { firstName: "James" } });
+    expect(nextState.criteria.personFilter).toEqual({ personFilter: { personFilter: "abc-123" } });
+  });
+
+  test("criteriaRaw override carried over when the param still exists in the new schema", () => {
+    const s1 = schema([{ name: "sort", in: "query", schema: { type: "object" } }]);
+    const s2 = schema([{ name: "sort", in: "query", schema: { type: "object" } }]);
+    const state: FormState = {
+      ...emptyState(),
+      criteria: { sort: { asc: { asc: "lastName" } } },
+      criteriaRaw: { sort: '{"asc": "lastName"}' },
+    };
+    const { nextState } = reprojectFormState(state, s1, s2);
+    expect(nextState.criteriaRaw?.sort).toBe('{"asc": "lastName"}');
+  });
+
+  test("object-type query param dropped from new schema → criteria spills into orphans bucket", () => {
+    const s1 = schema([
+      { name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` },
+      { name: "personFilter", in: "query", schema: { type: "object" }, description: `?personFilter={"personFilter":"Y"}` },
+    ]);
+    const s2 = schema([
+      { name: "criteria", in: "query", schema: { type: "object" }, description: `?criteria={"names":[{"firstName":"X"}]}` },
+    ]);
+    const state: FormState = {
+      ...emptyState(),
+      criteria: {
+        criteria: { names: { firstName: "James" } },
+        personFilter: { personFilter: { personFilter: "abc-123" } },
+      },
+    };
+    const { nextState } = reprojectFormState(state, s1, s2);
+    expect(nextState.criteria.criteria).toEqual({ names: { firstName: "James" } });
+    expect(nextState.criteria.personFilter).toBeUndefined();
+    expect(nextState.orphans?.criteria?.personFilter).toEqual({ personFilter: { personFilter: "abc-123" } });
   });
 
   test("body text preserved verbatim across schema change (Raw mode)", () => {

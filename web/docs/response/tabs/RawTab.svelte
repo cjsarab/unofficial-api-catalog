@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tokenize } from "../highlight.ts";
-  import { formatBytes } from "../format.ts";
+  import { formatBytes, isJsonContentType } from "../format.ts";
   import JsonTree from "../JsonTree.svelte";
   import type { Json } from "../types.ts";
 
@@ -12,14 +12,18 @@
 
   const HEAD_SLICE_BYTES = 64 * 1024;
   const HEAD_THRESHOLD_BYTES = 1024 * 1024;
-  const TOKENIZE_MAX_BYTES = 200 * 1024;
+  // Tokenize (syntax-highlight) cap. The original 200KB was overly tight
+  // — typical /api/persons responses (~50 records, ~5KB each) sat at
+  // 250-500KB and lost both highlighting and Pretty as a side-effect.
+  // 1MB is fine for an O(n) text walk on modern browsers.
+  const TOKENIZE_MAX_BYTES = 1024 * 1024;
 
   let prettyOn = $state(true);
   let lineNumbersOn = $state(false);
   let treeOn = $state(true);
   let showAll = $state(false);
 
-  const isJson = $derived(!!contentType && contentType.startsWith("application/json"));
+  const isJson = $derived(isJsonContentType(contentType));
   const isTooBig = $derived(bodyText.length > HEAD_THRESHOLD_BYTES);
 
   // Cheap binary heuristic: any C0 control (except \t \n \r) or replacement char (U+FFFD)
@@ -56,7 +60,11 @@
       return `Binary — ${bodyText.length} bytes. First 512 bytes:\n\n${hexHead(bodyText, 512)}`;
     }
     const source = isTooBig && !showAll ? bodyText.slice(0, HEAD_SLICE_BYTES) : bodyText;
-    if (!isJson || !prettyOn || tokensTooBig) return source;
+    // Pretty is independent of tokenize: JSON.stringify is fast even at
+    // multi-MB. Only short-circuit when the body isn't JSON or pretty is off.
+    // (If `source` is a head-slice of truncated JSON, the parse below throws
+    // and we fall back to showing the raw slice.)
+    if (!isJson || !prettyOn) return source;
     try {
       return JSON.stringify(JSON.parse(source), null, 2);
     } catch {
@@ -85,7 +93,7 @@
       <input type="checkbox" bind:checked={treeOn} disabled={!treeAvailable} /> Tree
     </label>
     <label>
-      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || tokensTooBig || (treeOn && treeAvailable)} /> Pretty
+      <input type="checkbox" bind:checked={prettyOn} disabled={!isJson || (treeOn && treeAvailable)} /> Pretty
     </label>
     <label>
       <input type="checkbox" bind:checked={lineNumbersOn} disabled={treeOn && treeAvailable} /> Line numbers
@@ -95,7 +103,7 @@
     {/if}
     <span class="spacer"></span>
     <span class="meta">
-      {isBinary ? "binary" : isJson ? "application/json" : (contentType ?? "plaintext")} · {formatBytes(bodyText.length)}
+      {isBinary ? "binary" : (contentType ?? (isJson ? "application/json" : "plaintext"))} · {formatBytes(bodyText.length)}
       {#if (isTooBig || isBinary) && !showAll}
         <button onclick={() => (showAll = true)}>
           Show all{isTooBig ? ` (${(bodyText.length / (1024*1024)).toFixed(2)} MB)` : ""}

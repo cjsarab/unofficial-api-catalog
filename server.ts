@@ -28,6 +28,14 @@ try {
   server = Bun.serve({
     port: PORT,
     fetch: dispatch,
+    // Bun's default idleTimeout is 10s. Ethos criteria queries against
+    // SPRIDEN-scale tables routinely take longer than that — without a
+    // higher cap, the proxy connection is killed mid-flight and the client
+    // sees a Network error instead of the upstream JSON. The full-catalog
+    // SSE indexer scan also takes ~2 minutes, so we need plenty of headroom.
+    // Cap is 255s in Bun (UInt8); use the max so neither path is artificially
+    // throttled.
+    idleTimeout: 255,
   });
 } catch (err) {
   const msg = (err as Error).message ?? String(err);

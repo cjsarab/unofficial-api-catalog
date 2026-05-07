@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { scrapeCriteriaFilters, type ExtractedFilter } from "../../lib/criteria-scraper.ts";
+  import { scrapeCriteriaFilters, inferRootShapes, type ExtractedFilter, type RootShape } from "../../lib/criteria-scraper.ts";
   import type { OpenAPIParameter } from "../../lib/openapi.ts";
 
   type Props = {
@@ -7,10 +7,14 @@
     /** Current flattened criteria values keyed by rootKey → leafName. */
     value: Record<string, Record<string, string>>;
     onChange: (next: Record<string, Record<string, string>>) => void;
+    /** Raw-mode literal text override for this param (set when the user typed
+     *  custom JSON whose shape can't be reconstructed from chips alone). */
+    rawOverride?: string;
+    onRawOverride: (raw: string | null) => void;
     /** Warnings from version migration: leafPaths the new version no longer documents. */
     undocumented?: Array<{ rootKey: string; leafPath: string }>;
   };
-  let { param, value, onChange, undocumented = [] }: Props = $props();
+  let { param, value, onChange, rawOverride, onRawOverride, undocumented = [] }: Props = $props();
 
   let mode = $state<"form" | "raw">("form");
   let pickerOpen = $state(false);
@@ -50,17 +54,36 @@
     return out;
   });
 
+  // Match against the parent field name (root key) and the dotted full path
+  // too, so typing a parent key like `credentials` surfaces its whole subtree
+  // instead of returning empty. (QOL-002)
   const pickerVisible = $derived.by<Array<[string, ExtractedFilter[]]>>(() => {
     const q = pickerQuery.trim().toLowerCase();
-    return grouped.map(([root, list]) => [
-      root,
-      list.filter((f) => !q || f.label.toLowerCase().includes(q) || f.leafPath.toLowerCase().includes(q)),
-    ] as [string, ExtractedFilter[]]).filter(([, list]) => list.length > 0);
+    if (!q) return grouped;
+    return grouped
+      .map(([root, list]) => {
+        const rootMatch = root.toLowerCase().includes(q);
+        const filtered = rootMatch
+          ? list
+          : list.filter(
+              (f) =>
+                f.label.toLowerCase().includes(q) ||
+                f.leafPath.toLowerCase().includes(q) ||
+                `${root}.${f.leafPath}`.toLowerCase().includes(q),
+            );
+        return [root, filtered] as [string, ExtractedFilter[]];
+      })
+      .filter(([, list]) => list.length > 0);
   });
 
   function isPicked(f: ExtractedFilter): boolean {
     return f.leafPath in (value[f.rootKey] ?? {});
   }
+
+  // Shape per rootKey from the description-scrape — used to render computedJson
+  // in the wire shape the API expects (scalar / object / array-of-objects),
+  // and as a fallback when the user's typed JSON looks ambiguous.
+  const shapes = $derived(inferRootShapes(filters));
 
   function pick(f: ExtractedFilter) {
     if (isPicked(f)) return;
@@ -68,6 +91,7 @@
       ...value,
       [f.rootKey]: { ...(value[f.rootKey] ?? {}), [f.leafPath]: "" },
     });
+    onRawOverride(null); // form-mode edit — chips become canonical
     pickerOpen = false;
     pickerQuery = "";
   }
@@ -79,6 +103,7 @@
     if (Object.keys(inner).length === 0) delete next[rootKey];
     else next[rootKey] = inner;
     onChange(next);
+    onRawOverride(null);
   }
 
   function setChipValue(rootKey: string, leafPath: string, v: string) {
@@ -86,33 +111,88 @@
       ...value,
       [rootKey]: { ...(value[rootKey] ?? {}), [leafPath]: v },
     });
+    onRawOverride(null);
+  }
+
+  /** Wrap leaves into the wire shape declared for this rootKey. Default for
+   *  unknown shapes is an unwrapped object (preserves user intent better than
+   *  blindly wrapping in `[…]`). */
+  function shapeLeaves(rk: string, leaves: Record<string, string>): unknown {
+    const filled = Object.entries(leaves).filter(([, v]) => v !== "");
+    if (filled.length === 0) return undefined;
+    const shape: RootShape | undefined = shapes.get(rk);
+    if (shape === "scalar" && filled.length === 1 && filled[0]![0] === rk) {
+      return filled[0]![1];
+    }
+    if (shape === "array-of-objects") {
+      return [Object.fromEntries(filled)];
+    }
+    // shape === "object" (documented), or unknown → preserve user intent as
+    // a plain object. The previous default was `[Object.fromEntries(...)]`
+    // which was wrong for any non-array-of-objects-shaped param.
+    return Object.fromEntries(filled);
   }
 
   const computedJson = $derived.by(() => {
     const obj: Record<string, unknown> = {};
     for (const [rk, leaves] of Object.entries(value)) {
-      // Array-of-objects grouping: all same-root leaves in one object
-      obj[rk] = [Object.fromEntries(Object.entries(leaves).map(([k, v]) => [k, v]))];
+      const shaped = shapeLeaves(rk, leaves);
+      if (shaped !== undefined) obj[rk] = shaped;
     }
     return JSON.stringify(obj, null, 2);
   });
 
+  function parseRaw(text: string): Record<string, Record<string, string>> | null {
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const nextValue: Record<string, Record<string, string>> = {};
+      for (const [rk, v] of Object.entries(parsed)) {
+        if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
+          nextValue[rk] = Object.fromEntries(Object.entries(v[0] as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
+        } else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+          nextValue[rk] = { [rk]: String(v) };
+        } else if (v && typeof v === "object" && !Array.isArray(v)) {
+          // Scalar object shape (e.g. personFilter: { id: "abc" }): collapse
+          // to {rk: {leaf: stringified}} so the form view can show it too.
+          nextValue[rk] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
+        }
+      }
+      return nextValue;
+    } catch {
+      return null;
+    }
+  }
+
+  // Commit raw-mode edits live so the URL preview + Send action see them
+  // immediately. Parse failures (mid-keystroke) are silent — onChange just
+  // doesn't fire until the JSON is valid again. The raw text becomes the
+  // wire-canonical form for this param (rawOverride), so a Form→Raw round-
+  // trip is lossless: the URL builder uses this verbatim instead of
+  // reconstructing from chips.
+  let rawInvalid = $state(false);
+  function onRawInput(ev: Event) {
+    rawText = (ev.target as HTMLTextAreaElement).value;
+    if (!rawText.trim()) { onChange({}); onRawOverride(null); rawInvalid = false; return; }
+    const parsed = parseRaw(rawText);
+    if (parsed === null) { rawInvalid = true; return; }
+    rawInvalid = false;
+    onChange(parsed);
+    onRawOverride(rawText);
+  }
+
   function switchMode(next: "form" | "raw") {
     if (mode === "form" && next === "raw") {
-      rawText = computedJson;
+      // Restore the user's last raw text if they typed one previously;
+      // otherwise serialise chips through the documented shape.
+      rawText = rawOverride ?? computedJson;
+      rawInvalid = false;
     } else if (mode === "raw" && next === "form") {
-      try {
-        const parsed = JSON.parse(rawText) as Record<string, unknown>;
-        const nextValue: Record<string, Record<string, string>> = {};
-        for (const [rk, v] of Object.entries(parsed)) {
-          if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
-            nextValue[rk] = Object.fromEntries(Object.entries(v[0] as Record<string, unknown>).map(([k, val]) => [k, String(val)]));
-          } else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-            nextValue[rk] = { [rk]: String(v) };
-          }
-        }
-        onChange(nextValue);
-      } catch { /* ignore; user stays in raw */ }
+      const parsed = parseRaw(rawText);
+      if (parsed !== null) {
+        onChange(parsed);
+        onRawOverride(null); // chips are now the source of truth
+      }
+      // else: leave state as it was; user stays informed via the invalid flag
     }
     mode = next;
   }
@@ -171,7 +251,10 @@
       </div>
     {/if}
   {:else}
-    <textarea class="cf-raw" bind:value={rawText} rows={6}></textarea>
+    <textarea class="cf-raw" class:invalid={rawInvalid} value={rawText} oninput={onRawInput} rows={6} placeholder={`{ "names": [{ "firstName": "James" }] }`}></textarea>
+    {#if rawInvalid}
+      <div class="cf-empty">JSON is invalid — last valid state is what will be sent.</div>
+    {/if}
   {/if}
 </div>
 
@@ -196,8 +279,8 @@
     border: 1px solid var(--border, #1e2a1e); padding: 3px 6px;
     font-family: inherit; font-size: 12px;
   }
-  .cf-chip.undoc label { color: #d4a548; }
-  .cf-tag { font-size: 10px; color: #a67c20; }
+  .cf-chip.undoc label { color: var(--warn); }
+  .cf-tag { font-size: 10px; color: var(--warn-border); }
   .cf-x { background: transparent; color: var(--fg-dim, #6ba544); border: 1px solid var(--border, #1e2a1e); cursor: pointer; padding: 0 6px; }
 
   .cf-picker { position: relative; }
@@ -209,7 +292,7 @@
   .cf-add:hover { border-style: solid; color: var(--fg, #a9ff68); }
   .cf-dropdown {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 5;
-    background: #0a100a; border: 1px solid var(--border-strong, #6ba544);
+    background: var(--bg-panel); border: 1px solid var(--border-strong);
     padding: 6px; max-height: 280px; overflow-y: auto;
   }
   .cf-search {
@@ -220,12 +303,13 @@
   .cf-group { color: var(--fg-dim, #6ba544); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
   .cf-opt { padding: 2px 6px; color: var(--fg, #ccc); cursor: pointer; }
   .cf-opt:hover:not(.disabled) { background: var(--bg-panel, #152815); }
-  .cf-opt.disabled { color: #555; text-decoration: line-through; cursor: not-allowed; }
+  .cf-opt.disabled { color: var(--fg-dim); opacity: 0.5; text-decoration: line-through; cursor: not-allowed; }
 
   .cf-raw {
     background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
     border: 1px solid var(--border, #1e2a1e); padding: 6px;
     font-family: inherit; font-size: 11px; width: 100%; resize: vertical;
   }
+  .cf-raw.invalid { border-color: var(--danger-border); }
   .cf-empty { color: var(--fg-dim, #6ba544); font-style: italic; font-size: 11px; }
 </style>

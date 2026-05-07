@@ -12,6 +12,18 @@ export function formatBytes(b: number): string {
 }
 
 /**
+ * Is this content-type JSON? Accepts `application/json` and any RFC 6838
+ * `+json` structured-syntax suffix (e.g. Ellucian's
+ * `application/vnd.hedtech.integration.v6+json`). Tolerates trailing
+ * parameters like `; charset=utf-8` and any case.
+ */
+export function isJsonContentType(ct: string | null | undefined): boolean {
+  if (!ct) return false;
+  const main = ct.split(";")[0]!.trim().toLowerCase();
+  return main === "application/json" || main.endsWith("+json");
+}
+
+/**
  * Format a ms count for UI:
  *  - negative or NaN → "0 ms"
  *  - 0..<1 → "< 1 ms"   (avoids a zero-width bar / misleading "0 ms" for real-but-tiny measurements)

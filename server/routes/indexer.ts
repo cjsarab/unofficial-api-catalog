@@ -1,7 +1,17 @@
 import { existsSync } from "node:fs";
 import type { RouteHandler } from "./types.ts";
 import { db, detachDb } from "../db.ts";
-import { clearIndexFiles, indexCatalog } from "../indexer/index.ts";
+import {
+  clearIndexFiles,
+  indexCatalog,
+  ScanInFlightError,
+  META_LAST_SCAN_STATUS,
+  META_LAST_SCAN_STARTED,
+  META_LAST_SCAN_FINISHED,
+  META_LAST_SCAN_ERROR,
+  type LastScanStatus,
+} from "../indexer/index.ts";
+import { getMeta } from "../indexer/sqlite.ts";
 
 export const handleIndexer: RouteHandler = async (req, url) => {
   if (url.pathname === "/api/index/scan" && req.method === "POST") {
@@ -13,8 +23,15 @@ export const handleIndexer: RouteHandler = async (req, url) => {
     if (!existsSync(catalogPath)) {
       return Response.json({ error: "catalog folder not found", catalogPath }, { status: 404 });
     }
-    const stats = await indexCatalog(catalogPath, { db: db() });
-    return Response.json({ catalogPath, ...stats });
+    try {
+      const stats = await indexCatalog(catalogPath, { db: db(), signal: req.signal });
+      return Response.json({ catalogPath, ...stats });
+    } catch (err) {
+      if (err instanceof ScanInFlightError) {
+        return Response.json({ error: "scan-in-flight" }, { status: 409 });
+      }
+      throw err;
+    }
   }
 
   // Streaming version of the catalog scan. Emits Server-Sent Events so the UI
@@ -38,13 +55,22 @@ export const handleIndexer: RouteHandler = async (req, url) => {
         try {
           const stats = await indexCatalog(catalogPath, {
             db: db(),
+            signal: req.signal,
             onProgress: (p) => emit("progress", p),
           });
           emit("done", { catalogPath, ...stats });
         } catch (err) {
-          emit("error", { message: (err as Error).message });
+          // Client closed the tab/EventSource — surface the cause via meta
+          // (already set by indexCatalog) but skip the SSE emit, the stream
+          // is already gone.
+          if (req.signal.aborted) return;
+          if (err instanceof ScanInFlightError) {
+            emit("error", { message: "Another scan is already in progress.", code: "scan-in-flight" });
+          } else {
+            emit("error", { message: (err as Error).message });
+          }
         } finally {
-          controller.close();
+          try { controller.close(); } catch { /* already closed by abort */ }
         }
       },
     });
@@ -100,9 +126,31 @@ export const handleIndexer: RouteHandler = async (req, url) => {
     const errors = handle
       .query<{ c: number }, []>(`SELECT count(*) as c FROM files WHERE parse_status = 'error'`)
       .get()?.c ?? 0;
+
+    // Scan-status snapshot — null `status` means no scan has ever run on this
+    // index (fresh DB / freshly cleared). UI treats that as "clean", not
+    // "incomplete".
+    const lastScan: {
+      status: LastScanStatus | null;
+      startedAt: number | null;
+      finishedAt: number | null;
+      error: string | null;
+    } = {
+      status: (getMeta(handle, META_LAST_SCAN_STATUS) as LastScanStatus | null) || null,
+      startedAt: numOrNull(getMeta(handle, META_LAST_SCAN_STARTED)),
+      finishedAt: numOrNull(getMeta(handle, META_LAST_SCAN_FINISHED)),
+      error: getMeta(handle, META_LAST_SCAN_ERROR) || null,
+    };
+
     return Response.json({
       apiCount, endpointCount, columnCount, distinctColumnCount,
-      lineageEdgeCount, families, domains, errors,
+      lineageEdgeCount, families, domains, errors, lastScan,
     });
   }
 };
+
+function numOrNull(v: string | null): number | null {
+  if (v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}

@@ -1,6 +1,6 @@
 # API Catalog Explorer — Design Plan
 
-> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 items 1-5 + 7 shipped** (DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal). Next: item 6 (full Response panel — deferred per brainstorm) or item 8 (request history).
+> Status: **Phase 1 complete** (browse + lineage + column & table profiles + global search). **Phase 2 complete** (items 1–7): DPAPI secret store, environment profile manager, Ethos API key → JWT exchange, request proxy, Try panel UI with verb-safety modal, full Response Panel. Item 8 (Request History) was implemented and merged 2026-04-27 then reverted at the user's call as out of scope. **Backlog cleared 2026-04-29** — 9 items closed (B-001..B-004, QOL-001..QOL-003, UX-001, UX-002); see `BACKLOG.md` closed section. Next: Phase 3 — column basket, SQL paste, set-cover matcher, lineage graph, theme switcher UI.
 
 ## Context
 
@@ -241,14 +241,13 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
 ## Try-APIs (locked in)
 
 - **Environment profiles** (tenant-level, shared across all APIs). Stored in `%APPDATA%\api-catalog-explorer\environments.json`; secrets DPAPI-encrypted in a sibling `secrets.json`, never on disk plaintext.
-- **Per-profile fields**: name, production flag, Ellucian API key (DPAPI-encrypted in the sibling `secrets.json`). Per-request headers live on the Try panel — environments carry credentials + connection, not content negotiation. The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests; the request-history logger always redacts bodies regardless of env.
+- **Per-profile fields**: name, production flag, Ellucian API key (DPAPI-encrypted in the sibling `secrets.json`). Per-request headers live on the Try panel — environments carry credentials + connection, not content negotiation. The `production` flag is the sole safety setting — when true, the Try panel confirms non-GET requests.
 - **Region is workspace-level, not per-env**: stored in `config.json` as `region: "us" | "ca" | "eu" | "ap"` (US / Canada / Europe / Asia-Pacific). One value for all envs — all tenants a given user works with are in the same region. The base URL and auth URL are derived from region: `https://integrate.elluciancloud.{com|ca|ie|com.au}` and `${baseUrl}/auth` respectively.
 - **Top-bar selector**: one-click switch between profiles. Red dot indicator on production envs.
 - **Auth**:
   - **Ellucian Ethos Integration auth** — server sends the tenant's API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth` (region resolved from workspace-level `config.json`), receives a plaintext JWT in the response body, caches in RAM for TTL - 60 s, refreshes on 401, proxies calls with `Authorization: Bearer <jwt>`. API key is required per env; there is no client_id/client_secret pair.
   - **Test connection** button pings the auth endpoint; reports token acquisition time; does not touch data.
 - **Verb safety**: confirm POST/PUT/PATCH/DELETE only on envs marked `production`. Confirm modal shows method + URL + redacted body + "Copy as curl" + Send/Cancel. Shift+F5 skips the dialog for the current request. Other envs send without prompting; env badges (red/amber/grey) provide the visual cue.
-- **Request history**: every send logged to a SQLite table (timestamp, env, method, path, status, duration, redacted body, full response blob under size cap). Rendered as a third sidebar tab (with family tree + column dict). Click to reload into Try; `↻` to rerun. Filterable and exportable (JSON / curl).
 - **Request builder form**: schema-driven — reads the endpoint's OpenAPI schema and renders typed inputs (enums as dropdowns, dates as pickers, UUIDs with validators, arrays as chips). Toggle for raw JSON editor.
 
 ## Catalog drop-in flow (locked in)
@@ -295,7 +294,6 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
   - `api_fts` (FTS5 over title + description + tags + source-domain).
   - `columns_fts` (FTS5 over column names, trigram-tokenized for fuzzy matching).
   - `files` (path, mtime, size, last_indexed, parse_status, error).
-  - `request_history` (timestamp, env_id, method, path, status, duration, body_redacted, response_blob_id).
 - **Progress pushed to UI** over a WebSocket: per-file progress + ETA + files/sec.
 - **First-run estimate**: ~55 s for full catalog on a 4-core Windows machine. Subsequent launches < 1 s when nothing changed.
 - **Schema migrations**: if app version bump changes the index schema, detect and wipe-rebuild in place.
@@ -306,7 +304,7 @@ Route: `/tables/:name` (e.g. `/tables/SPRIDEN`, `/tables/gtvzipc`).
 - **Command palette** (`Ctrl+K`): same search + commands. Commands include:
   - Navigation: `Go to column…`, `Go to API…`, `Go to family…`, `Go to table…`.
   - Catalog: `Change catalog folder…`, `Re-scan catalog`, `Show indexing notes`.
-  - Try: `Switch environment: <name>`, `Clear request history`.
+  - Try: `Switch environment: <name>`.
   - Appearance: `Theme: <name>`, `Scanlines: on/off`, `Reader mode`.
   - Import/export: `Export basket as CSV`, `Export index as JSON`.
 - **Keyboard-first**: arrow keys + Enter; Esc closes. No mouse required.
@@ -335,7 +333,6 @@ A three-phase build so the tool delivers value early. Each phase is releasable o
 - Try panel (schema-driven form + raw JSON toggle).
 - Response panel (full-width under, raw/table/headers/timing tabs).
 - Verb safety modal (confirm non-GET on prod envs).
-- Request history (SQLite table + sidebar tab + rerun).
 - Default-headers machinery + `Accept: application/vnd.hedtech.integration.vN+json`.
 
 **Phase 3 — The migration killer-feature + polish**
@@ -470,7 +467,7 @@ Ordered by severity. Three HIGH items were fixed this session; the rest are defe
 - ✅ **Stale-fetch races in profile views** (HIGH, fixed) — `ApiDocsView`, `ColumnProfile`, `TableProfile` now use `AbortController` so rapid navigation cancels older in-flight requests before their responses can overwrite newer state.
 - ✅ **Catalog overview links went to raw JSON** (HIGH, fixed) — the top-columns/tables grid on the landing page bypassed the SPA. Now routes through `onSelectColumn`/`onSelectTable`.
 - ✅ **`_db` reference order in `/api/index/clear`** (MEDIUM, fixed) — detach the cached handle before closing + deleting, so concurrent requests get a fresh connection.
-- ⏭ **SSE indexer stream can't be cancelled by client** (MEDIUM) — if the user navigates away mid-scan, the scan keeps running. Parse-in-progress writes land in SQLite. Not catastrophic (indexer is idempotent) but wasteful. Fix: wire `req.signal` into `indexCatalog` via an `AbortSignal` argument and check between files.
+- ✅ **SSE indexer stream can't be cancelled by client** (MEDIUM, fixed) — `indexCatalog()` now takes an `AbortSignal`; the SSE handler passes `req.signal`; per-file `throwIfAborted()` stops scans within one parse. Status persisted to `meta.last_scan_status` so the dashboard surfaces incomplete scans (`c5d7737`, BACKLOG B-003 / QOL-003).
 - ⏭ **Client EventSource treats transient reconnects as fatal** (MEDIUM) — for a 2-minute scan a network hiccup can end the stream prematurely; add a check against `source.readyState === EventSource.CLOSED`.
 - ⏭ **Path-traversal `startsWith` check is prefix-based** (MEDIUM, low exploit risk) — `resolved.startsWith(DIST_DIR)` also matches sibling directories like `dist-evil/`. Change to `resolved === DIST_DIR || resolved.startsWith(DIST_DIR + path.sep)`.
 - ⏭ **LIKE `_`/`%` over-matches** (MEDIUM, correctness not security) — user queries `SPRIDEN_ID` match columns like `SPRIDENXID` via the `_` wildcard. Fix: escape `_` and `%` in user input with `ESCAPE '\\'` (already used in `/api/columns/prefix/:name`).
@@ -508,17 +505,17 @@ Goal: real API calls work end-to-end for users whose Ellucian tenant is accessib
 1. ✅ **Environment profile manager** (Settings → Environments, at `/settings/environments`). CRUD UI backed by `%APPDATA%\api-catalog-explorer\environments.json`; API keys stored DPAPI-encrypted in the sibling `secrets.json` under key `env/<id>/api_key`. Fields per profile: name, production flag, API key. Region is workspace-level (stored in `config.json`) — one dropdown at the top of the Environments panel applies to all envs. The base URL and auth URL are derived from region. Top-bar env selector (with a red dot indicator when the active env is production) switches active env in one click; `activeId` persists across launches. Settings accessed via a gear icon in the top bar or by navigating directly to `/settings/environments`.
 2. ✅ **Windows DPAPI secret storage** — two-layer split. `server/auth/dpapi.ts` is a thin `bun:ffi` wrapper around `CryptProtectData` / `CryptUnprotectData` from `crypt32.dll` (no I/O). `server/auth/secrets.ts` is a generic key/value store on top, persisting base64 ciphertexts to `%APPDATA%\api-catalog-explorer\secrets.json` via atomic tmp+rename writes. Entirely in-app — no `CredWrite`, nothing visible in `Manage Windows Credentials`. End-to-end tests in `tests/secrets.test.ts` cover round-trip (ASCII + unicode), delete, list, plaintext-not-on-disk, persistence, and tampered-ciphertext rejection.
 3. ✅ **Ellucian API key → JWT exchange** (`server/auth/ethos.ts`) — POST the stored API key as `Authorization: Bearer <api_key>` to `${regionBaseUrl}/auth`, receive plaintext JWT, cache in RAM per env for 4 minutes (5-minute server TTL minus 60-second safety margin). `invalidate()` forces refresh on downstream 401. Consumed by the request proxy (item 4) — no HTTP surface of its own. "Test connection" UI deferred.
-4. ✅ **Request proxy** (`server/proxy/ethos.ts`) — `/api/ethos/<path>` forwards UI requests to `${regionBaseUrl}/<path>` with the env's cached Bearer JWT attached. Transparent method/body/header passthrough; 401 triggers a one-shot invalidate + retry. Exposes an `onComplete` hook (no-op here) for Phase 2 item 8 to wire SQLite `request_history` writes into.
+4. ✅ **Request proxy** (`server/proxy/ethos.ts`) — `/api/ethos/<path>` forwards UI requests to `${regionBaseUrl}/<path>` with the env's cached Bearer JWT attached. Transparent method/body/header passthrough; 401 triggers a one-shot invalidate + retry. Exposes an `onComplete` hook (currently a no-op).
 5. ✅ **Try panel UI** (`web/docs/TryPanel.svelte`) — click an endpoint in the docs → form renders. URL bar + tabs (Params / Headers / Body). Schema-driven controls (text / retro dropdown / native date / UUID validator / chips / recursive nested form). EEDM `criteria={...}` flattening via description scraper + picker + Raw JSON toggle. Version switching re-projects drafts with orphan/coercion/undocumented-chip warnings. Body defaults to Raw JSON with Prefill-from-schema; Form mode available with recursive nested rendering. F5 / Ctrl+Enter send; Shift+F5 skips the prod verb-safety modal.
 6. ✅ **Response panel UI** (`web/docs/response/ResponsePanel.svelte`) — full-width under the three top panes. **Table** tab algorithmically decomposes JSON into flat peer tables (`shape.ts` — handles wrapper-collapse, pass-through rows, heterogeneous splits, 5-deep nesting, `_parent_id` vs `_parent_idx` synthesis); rail-less when there's one table, tree-rail when multiple; count-link chips navigate + filter by parent; sort / resize / hide-cols / copy-cell QoL affordances on the grid. **Raw** tab offers collapsible JSON tree (default ON), flat text with highlighting, pretty-print + line numbers, binary hex head, head-slice for >1 MB. **Headers** tab has Response / Request sub-tabs with per-tab Copy, click-to-reveal redaction on Authorization / Cookie / Set-Cookie. **Timing** tab renders Auth / Request / Response / Total bars (server-side phases via `X-Proxy-*` headers) + bytes, with human-readable ms-or-seconds formatting. Response state lifted from TryPanel to App.svelte with AbortController for cancel-previous.
 7. ✅ **Verb safety modal** — folded into item 5. Prod env + non-GET → confirm dialog with env badge, method + URL, redacted body preview, Send/Cancel. Esc cancels, Enter confirms. `Shift+F5` on the original Send skips the modal for one request.
-8. **Request history** — SQLite `request_history` (already in schema) populated per send. Third sidebar tab "History" with rerun, filter, export as JSON/curl.
+~~8. Request history~~ — **scrapped 2026-04-27.** Implemented + merged + reverted in one session; the user judged the feature unnecessary against the project's terseness goals. Reflog has the 22-commit branch for ~30 days if reconsidered. The proxy's `onComplete` hook stays in place for any future reconsideration.
 
 **Should-do during Phase 2 while we're in there:**
 
 - ✅ Split `server.ts` into per-route modules — done. Each handler is now testable without booting `Bun.serve`.
 - Extract shared helpers from profile views into `web/lib/lineage.ts`.
-- AbortSignal wire-up for the SSE indexer stream (known issue).
+- ✅ AbortSignal wire-up for the SSE indexer stream — done (`c5d7737`).
 - Add HTTP-surface integration tests for the search / profile / API-detail endpoints.
 
 **Nice-to-have (deferrable):**

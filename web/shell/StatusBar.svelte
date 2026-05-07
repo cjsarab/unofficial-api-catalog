@@ -8,13 +8,32 @@
     families: Array<{ family: string; c: number }>;
   };
 
+  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScan = {
+    status: LastScanStatus | null;
+    startedAt: number | null;
+    finishedAt: number | null;
+    error: string | null;
+  };
+
   type Props = {
     summary: Summary | null;
     catalogPath: string | undefined;
     env: string;
     lastResponse?: { status: number; durationMs: number } | null;
+    lastScan?: LastScan | null;
+    rescanInFlight?: boolean;
+    onRescan?: () => void;
   };
-  let { summary, catalogPath, env, lastResponse }: Props = $props();
+  let {
+    summary,
+    catalogPath,
+    env,
+    lastResponse,
+    lastScan = null,
+    rescanInFlight = false,
+    onRescan,
+  }: Props = $props();
 
   const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -26,6 +45,10 @@
     // Joining with "\\…\\" gives the expected "C:\…\foo\bar".
     return parts[0] + "\\…\\" + parts.slice(-2).join("\\");
   }
+
+  const incomplete = $derived(
+    !!lastScan && (lastScan.status === "aborted" || lastScan.status === "error"),
+  );
 </script>
 
 <footer class="status-bar">
@@ -36,6 +59,17 @@
       <span>{summary.families.length}/20 families</span>
       <span class="sep">·</span>
       <span title={catalogPath}>catalog @ {shortPath(catalogPath)}</span>
+      {#if incomplete}
+        <span class="sep">·</span>
+        <button
+          class="incomplete-chip"
+          onclick={() => onRescan?.()}
+          disabled={rescanInFlight || !onRescan}
+          title={lastScan?.error || "the previous scan was interrupted; the index may be partial"}
+        >
+          ◇ index incomplete{rescanInFlight ? " · rescanning…" : " · re-scan"}
+        </button>
+      {/if}
     {:else}
       <span>no index loaded</span>
     {/if}
@@ -69,4 +103,24 @@
   .env { color: var(--fg); }
   .status-code.ok { color: var(--fg-bright); }
   .status-code.err { color: var(--danger); }
+
+  .incomplete-chip {
+    font: inherit;
+    font-family: var(--font-mono);
+    background: transparent;
+    border: 1px solid var(--warn);
+    color: var(--warn);
+    padding: 1px 6px;
+    border-radius: 2px;
+    cursor: pointer;
+    line-height: 1.3;
+  }
+  .incomplete-chip:hover:not(:disabled) {
+    background: var(--warn);
+    color: var(--bg);
+  }
+  .incomplete-chip:disabled {
+    cursor: progress;
+    opacity: 0.7;
+  }
 </style>

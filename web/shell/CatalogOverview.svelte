@@ -12,31 +12,57 @@
   type TopColumn = { column_name: string; api_count: number; total_occurrences: number };
   type TopTable = { table: string; api_count: number };
 
+  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScan = {
+    status: LastScanStatus | null;
+    startedAt: number | null;
+    finishedAt: number | null;
+    error: string | null;
+  };
+
   type Props = {
     onSelectColumn: (name: string) => void;
     onSelectTable: (name: string) => void;
+    /** App owns the summary fetch + re-fetch on rescan; we just render it.
+     *  Previously this component fetched independently, causing two requests
+     *  per overview render and stale stats after a rescan. */
+    summary: Summary | null;
+    lastScan?: LastScan | null;
+    rescanInFlight?: boolean;
+    onRescan?: () => void;
   };
-  let { onSelectColumn, onSelectTable }: Props = $props();
+  let {
+    onSelectColumn,
+    onSelectTable,
+    summary,
+    lastScan = null,
+    rescanInFlight = false,
+    onRescan,
+  }: Props = $props();
 
-  let summary = $state<Summary | null>(null);
+  const incomplete = $derived(
+    !!lastScan && (lastScan.status === "aborted" || lastScan.status === "error"),
+  );
+
   let topColumns = $state<TopColumn[]>([]);
   let topTables = $state<TopTable[]>([]);
 
   const fmt = (n: number) => n.toLocaleString("en-US");
 
-  async function load() {
-    const [sumRes, colsRes, tablesRes] = await Promise.all([
-      fetch("/api/index/summary"),
-      fetch("/api/columns?limit=12"),
-      fetch("/api/tables?limit=12"),
-    ]);
-    if (sumRes.ok) summary = (await sumRes.json()) as Summary;
-    if (colsRes.ok) topColumns = ((await colsRes.json()) as { columns: TopColumn[] }).columns;
-    if (tablesRes.ok) topTables = ((await tablesRes.json()) as { tables: TopTable[] }).tables;
-  }
-
+  // Top-N lists are still loaded here — they're overview-specific (not part of
+  // the App-level summary) and small enough to refetch when the user revisits.
+  // Refire when summary changes (e.g. after a rescan) so top-tables/top-columns
+  // also refresh and don't go stale.
   $effect(() => {
-    load();
+    void summary;
+    (async () => {
+      const [colsRes, tablesRes] = await Promise.all([
+        fetch("/api/columns?limit=12"),
+        fetch("/api/tables?limit=12"),
+      ]);
+      if (colsRes.ok) topColumns = ((await colsRes.json()) as { columns: TopColumn[] }).columns;
+      if (tablesRes.ok) topTables = ((await tablesRes.json()) as { tables: TopTable[] }).tables;
+    })();
   });
 </script>
 
@@ -46,6 +72,18 @@
     <h1>Select an API from the tree, or start with one of these.</h1>
     <p class="dim">Use the family tree, column dictionary, or table list on the left. Any column or table below also jumps to its profile.</p>
   </header>
+
+  {#if incomplete}
+    <div class="incomplete-banner" role="status">
+      <div class="text">
+        <strong>Indexing was interrupted.</strong>
+        The numbers below may be incomplete{#if lastScan?.error} ({lastScan.error}){/if}.
+      </div>
+      <button class="rescan" onclick={() => onRescan?.()} disabled={rescanInFlight || !onRescan}>
+        {rescanInFlight ? "Rescanning…" : "Re-scan"}
+      </button>
+    </div>
+  {/if}
 
   {#if summary}
     <section class="stats">
@@ -208,4 +246,34 @@
     .split { grid-template-columns: 1fr; }
     ul.list.two-col { grid-template-columns: 1fr; }
   }
+
+  .incomplete-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    border: 1px solid var(--warn);
+    border-left-width: 3px;
+    background: var(--bg-panel);
+    color: var(--fg);
+    padding: var(--space-3) var(--space-4);
+    margin: 0 0 var(--space-4);
+    font-size: 12px;
+  }
+  .incomplete-banner strong { color: var(--warn); margin-right: 6px; }
+  .incomplete-banner .rescan {
+    font: inherit;
+    font-family: var(--font-mono);
+    background: transparent;
+    border: 1px solid var(--warn);
+    color: var(--warn);
+    padding: 4px 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .incomplete-banner .rescan:hover:not(:disabled) {
+    background: var(--warn);
+    color: var(--bg);
+  }
+  .incomplete-banner .rescan:disabled { cursor: progress; opacity: 0.7; }
 </style>

@@ -38,12 +38,17 @@
   });
 
   $effect(() => {
-    // When the user navigates to a different table, reset hiddenCols + navFilter.
-    // columnsMenuOpen is intentionally NOT reset here — it closes via its
-    // own outside-click / Escape handlers.
+    // When the user navigates to a different table, reset hiddenCols.
+    // columnsMenuOpen is intentionally NOT reset — it closes via its own
+    // outside-click / Escape handlers.
+    //
+    // navFilter is NOT reset here either: the count-link click handler sets
+    // `selectedPath = p; navFilter = pid` together, and an unconditional
+    // reset on selectedPath change would clobber the just-set navFilter
+    // before it could take effect. The rail / breadcrumb handlers already
+    // set `navFilter = null` explicitly when they want it cleared.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _ = selectedPath;
-    navFilter = null;
     hiddenCols = new Set();
   });
 
@@ -161,7 +166,7 @@
       <p class="dim">Root is a scalar value.</p>
     </div>
   {:else}
-    <div class="layout" class:single={tables.length <= 1}>
+    <div class="layout">
       {#if tables.length > 1}
         <TableRail
           tables={tables}
@@ -251,8 +256,11 @@
 
 <style>
   .table-tab { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  /* Always flex — the rail is conditionally rendered, so the rail-less
+     single-table case naturally gets the full width via flex:1 on .content.
+     Switching to `display:block` here breaks the min-height:0 chain that
+     lets DataTable's overflow:auto establish a bounded scrolling viewport. */
   .layout { display: flex; flex: 1; min-height: 0; }
-  .layout.single { display: block; }
   .content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .crumbs {
     display: flex;

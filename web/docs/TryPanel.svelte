@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { EndpointSchema, OpenAPIParameter } from "../lib/openapi.ts";
   import type { ResponseView } from "./response/types.ts";
-  import { reprojectFormState, type FormState, type MigrationWarning } from "./try/version-migration.ts";
+  import { decodeQueryValues } from "../lib/url-display.ts";
+  import { scrapeCriteriaFilters, inferRootShapes } from "../lib/criteria-scraper.ts";
+  import { isJsonContentType } from "./response/format.ts";
+  import { reprojectFormState, isCriteriaParam, type FormState, type MigrationWarning } from "./try/version-migration.ts";
   import ParamsTab from "./try/ParamsTab.svelte";
   import HeadersTab from "./try/HeadersTab.svelte";
   import BodyTab from "./try/BodyTab.svelte";
@@ -36,7 +39,7 @@
 
   function freshState(): FormState {
     return {
-      pathParams: {}, queryParams: {}, criteria: {},
+      pathParams: {}, queryParams: {}, criteria: {}, criteriaRaw: {},
       headers: [], body: { mode: "raw", text: "" }, headersOverridden: {},
     };
   }
@@ -105,15 +108,74 @@
       if (val === "" || val === undefined) continue;
       qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(val)}`);
     }
-    // Criteria as a single object.
-    if (Object.keys(state.criteria).length > 0) {
-      const obj: Record<string, unknown> = {};
-      for (const [rk, leaves] of Object.entries(state.criteria)) {
-        obj[rk] = [Object.fromEntries(Object.entries(leaves).filter(([, v]) => v !== ""))];
+    // Criteria-style object query params: each one builds its own JSON object
+    // (e.g. `?criteria={"names":[{"firstName":"X"}]}&personFilter={"personFilter":"Y"}`).
+    //
+    // Two sources of wire shape, in order of precedence:
+    //   1. state.criteriaRaw[paramName] — the literal text the user typed in
+    //      Raw mode. Lossless: whatever they typed is what we send.
+    //   2. Description-scraped shape per rootKey (array-of-objects / object /
+    //      scalar). Used when no raw override exists.
+    //
+    // For unknown shapes (no description AND no raw override), we default to a
+    // plain object — preserves user intent better than blindly wrapping in
+    // `[…]`, which was the old default and broke scalar-shape APIs.
+    const criteriaParams = currentSchema?.parameters.filter(isCriteriaParam) ?? [];
+    const shapeByParam = new Map<string, Map<string, "array-of-objects" | "object" | "scalar">>();
+    for (const cp of criteriaParams) {
+      const filters = scrapeCriteriaFilters(
+        cp.description ?? "",
+        cp.name,
+        typeof cp.example === "string" ? cp.example : undefined,
+      );
+      shapeByParam.set(cp.name, inferRootShapes(filters));
+    }
+
+    const allParamNames = new Set([
+      ...Object.keys(state.criteria),
+      ...Object.keys(state.criteriaRaw ?? {}),
+    ]);
+
+    for (const paramName of allParamNames) {
+      const rawOverride = state.criteriaRaw?.[paramName];
+      if (rawOverride && rawOverride.trim()) {
+        // User typed literal JSON in Raw mode — send verbatim. We re-parse
+        // and re-stringify to normalise whitespace, but the structure is
+        // exactly what they typed (no shape rewriting).
+        try {
+          const obj = JSON.parse(rawOverride) as Record<string, unknown>;
+          if (Object.keys(obj).length > 0) {
+            qs.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(JSON.stringify(obj))}`);
+          }
+        } catch {
+          // Invalid JSON shouldn't happen (CriteriaFilter only sets the
+          // override on successful parse) — but defensively skip.
+        }
+        continue;
       }
-      const criteriaParam = currentSchema?.parameters.find((p) => p.schema?.type === "object" && p.in === "query");
-      const name = criteriaParam?.name ?? "criteria";
-      qs.push(`${encodeURIComponent(name)}=${encodeURIComponent(JSON.stringify(obj))}`);
+
+      const perParam = state.criteria[paramName] ?? {};
+      const obj: Record<string, unknown> = {};
+      const shapes = shapeByParam.get(paramName) ?? new Map();
+      for (const [rk, leaves] of Object.entries(perParam)) {
+        const filledLeaves = Object.entries(leaves).filter(([, v]) => v !== "");
+        if (filledLeaves.length === 0) continue;
+        const shape = shapes.get(rk);
+        if (shape === "scalar" && filledLeaves.length === 1 && filledLeaves[0]![0] === rk) {
+          // {personFilter: "abc"} — single leaf whose name matches the rootKey
+          obj[rk] = filledLeaves[0]![1];
+        } else if (shape === "array-of-objects") {
+          // {names: [{firstName: "James"}]}
+          obj[rk] = [Object.fromEntries(filledLeaves)];
+        } else {
+          // shape === "object" or unknown → {rk: {a, b}}. Previously the
+          // unknown-shape default was array-wrap, which silently mangled
+          // any API whose criteria param didn't follow the array pattern.
+          obj[rk] = Object.fromEntries(filledLeaves);
+        }
+      }
+      if (Object.keys(obj).length === 0) continue;
+      qs.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(JSON.stringify(obj))}`);
     }
     return url + (qs.length ? "?" + qs.join("&") : "");
   });
@@ -121,7 +183,13 @@
   const counts = $derived.by(() => {
     const params = Object.values(state.pathParams).filter((v) => v !== "").length
                  + Object.values(state.queryParams).filter((v) => v !== "").length
-                 + Object.values(state.criteria).reduce((n, l) => n + Object.values(l).filter((v) => v !== "").length, 0);
+                 + Object.values(state.criteria).reduce(
+                     (n, perParam) => n + Object.values(perParam).reduce(
+                       (m, leaves) => m + Object.values(leaves).filter((v) => v !== "").length,
+                       0,
+                     ),
+                     0,
+                   );
     const headers = state.headers.filter((h) => h.name && h.value).length + (state.headersOverridden["Accept"] ? 0 : 1); // +1 for the auto Accept row
     return { params, headers };
   });
@@ -208,7 +276,7 @@
       const ct = res.headers.get("content-type");
 
       let proxyError: ResponseView["proxyError"] | undefined;
-      if (!res.ok && ct?.startsWith("application/json")) {
+      if (!res.ok && isJsonContentType(ct)) {
         try {
           const parsed = JSON.parse(bodyText) as { error?: string; detail?: string; envId?: string };
           if (parsed && typeof parsed.error === "string") {
@@ -232,6 +300,8 @@
       const view: ResponseView = {
         status: res.status,
         statusText: res.statusText,
+        requestMethod: focused.method,
+        requestUrl: computedUrl,
         headers: headersObj,
         requestHeaders: requestHeadersObj,
         bodyText,
@@ -255,6 +325,8 @@
       onSend({
         status: 0,
         statusText: "Network error",
+        requestMethod: focused.method,
+        requestUrl: computedUrl,
         headers: {},
         requestHeaders: {},
         bodyText: String((e as Error).message),
@@ -312,7 +384,7 @@
     <!-- URL bar -->
     <div class="url-bar">
       <span class="method method-{focused.method.toLowerCase()}">{focused.method}</span>
-      <code class="url">{computedUrl}</code>
+      <code class="url" title={computedUrl}>{decodeQueryValues(computedUrl)}</code>
       <button class="send" onclick={doSend} disabled={sending || !activeEnv}
               title={!activeEnv ? "Select an environment in the top bar to send requests." : ""}>
         {sending ? "Sending…" : "[F5] Send"}
@@ -330,7 +402,7 @@
           {:else if w.kind === "coercion-failed"}
             Previous value for <code>{w.name}</code> didn't fit the new schema.
           {:else if w.kind === "criteria-undocumented"}
-            <code>{w.rootKey}.{w.leafPath}</code> is no longer documented in v{version}.
+            <code>{w.paramName}: {w.rootKey}.{w.leafPath}</code> is no longer documented in v{version}.
           {/if}
         </div>
       {/each}
@@ -349,9 +421,22 @@
           pathValues={state.pathParams}
           queryValues={state.queryParams}
           criteriaValues={state.criteria}
+          criteriaRaw={state.criteriaRaw}
           onPathChange={(n, v) => persist({ ...state, pathParams: { ...state.pathParams, [n]: v } })}
           onQueryChange={(n, v) => persist({ ...state, queryParams: { ...state.queryParams, [n]: v } })}
-          onCriteriaChange={(c) => persist({ ...state, criteria: c })}
+          onCriteriaChange={(name, c) => {
+            const next = { ...state.criteria };
+            // Drop the param entry entirely if it's empty, so the URL builder
+            // doesn't emit "?paramName=%7B%7D" for an untouched filter.
+            const isEmpty = Object.values(c).every((leaves) => Object.keys(leaves).length === 0);
+            if (isEmpty) delete next[name]; else next[name] = c;
+            persist({ ...state, criteria: next });
+          }}
+          onCriteriaRawChange={(name, raw) => {
+            const next = { ...(state.criteriaRaw ?? {}) };
+            if (raw === null) delete next[name]; else next[name] = raw;
+            persist({ ...state, criteriaRaw: next });
+          }}
           amberNames={amberNames}
           undocumentedCriteria={warnings.filter((w): w is Extract<MigrationWarning, { kind: "criteria-undocumented" }> => w.kind === "criteria-undocumented")}
         />
@@ -395,17 +480,17 @@
 <style>
   .tp { display: flex; flex-direction: column; height: 100%; font-family: ui-monospace, monospace; font-size: 12px; color: var(--fg, #a9ff68); }
   .empty, .err { padding: 12px; color: var(--fg-dim, #6ba544); font-style: italic; }
-  .err { color: #ff8a8a; }
+  .err { color: var(--danger); }
   .url-bar {
     display: flex; gap: 6px; align-items: center;
     padding: 6px 8px; background: var(--bg-panel, #152815);
     border-bottom: 1px solid var(--border, #2a4a2a);
   }
   .method { padding: 2px 6px; font-weight: bold; font-size: 11px; flex: 0 0 auto; }
-  .method-get { background: #1e4a1e; color: #9fff9f; }
-  .method-post { background: #4a1e1e; color: #ffb0b0; }
-  .method-put, .method-patch { background: #4a3a1e; color: #ffcc88; }
-  .method-delete { background: #4a1e1e; color: #ff8888; }
+  .method-get { background: var(--method-get-bg); color: var(--method-get-fg); }
+  .method-post { background: var(--method-post-bg); color: var(--method-post-fg); }
+  .method-put, .method-patch { background: var(--method-put-bg); color: var(--method-put-fg); }
+  .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
   .url { flex: 1 1 0; overflow-wrap: anywhere; color: var(--fg-bright, #cfff9a); }
   .send {
     background: var(--bg, #0d120d); color: var(--fg-bright, #cfff9a);
@@ -414,8 +499,8 @@
   }
   .send:disabled { opacity: 0.5; cursor: not-allowed; }
   .banner { padding: 4px 10px; font-size: 11px; }
-  .banner.err { background: #2a1818; color: #ffb0b0; border-left: 3px solid #bf5050; }
-  .banner.warn { background: #2a2415; color: #d4a548; border-left: 3px solid #a67c20; }
+  .banner.err { background: var(--danger-bg); color: var(--danger); border-left: 3px solid var(--danger-border); }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); border-left: 3px solid var(--warn-border); }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border, #2a4a2a); padding: 0 4px; }
   .tabs button {
     background: transparent; color: var(--fg-dim, #6ba544);

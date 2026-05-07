@@ -1,10 +1,36 @@
 import type { Database } from "bun:sqlite";
 import { unlink } from "node:fs/promises";
 
-import { openIndex } from "./sqlite.ts";
+import { openIndex, setMeta } from "./sqlite.ts";
 import { walkCatalog, parseResourceFolderName, type WalkedFile } from "./walker.ts";
 import { parseSpec, type ParsedSpec } from "./parser.ts";
 import type { LineageAnnotation } from "./lineage.ts";
+
+// Scan-status keys persisted in `meta` so the UI can surface "indexing was
+// interrupted last time" after a tab close, kill, or thrown error.
+export const META_LAST_SCAN_STATUS = "last_scan_status";
+export const META_LAST_SCAN_STARTED = "last_scan_started_at";
+export const META_LAST_SCAN_FINISHED = "last_scan_finished_at";
+export const META_LAST_SCAN_ERROR = "last_scan_error";
+
+export type LastScanStatus = "running" | "complete" | "aborted" | "error";
+
+/** Process-level mutex for indexCatalog. Two concurrent scans against the same
+ *  DB would race on per-file writes AND on the stale-cleanup pass — the second
+ *  scan's stale cleanup uses a later `scanStartedAt`, so any rows the first
+ *  scan touched but the second hasn't reached yet would be deleted. There's no
+ *  business case for parallel scans on a single-user app; reject the second
+ *  caller with a structured error. */
+let scanInFlight = false;
+export class ScanInFlightError extends Error {
+  constructor() {
+    super("Another scan is already in progress.");
+    this.name = "ScanInFlightError";
+  }
+}
+export function isScanInFlight(): boolean {
+  return scanInFlight;
+}
 
 export interface IndexProgress {
   total: number;
@@ -31,10 +57,51 @@ export interface IndexStats extends IndexProgress {
  */
 export async function indexCatalog(
   rootDir: string,
-  opts: { db?: Database; onProgress?: (p: IndexProgress) => void } = {},
+  opts: {
+    db?: Database;
+    onProgress?: (p: IndexProgress) => void;
+    /**
+     * If passed, an abort flips the scan to status='aborted' (with a recorded
+     * `aborted_at`) and rejects the returned promise with the signal's reason.
+     * Per-file granular: a partial scan leaves rows already written, but the
+     * meta status flag tells the UI the index is incomplete.
+     */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<IndexStats> {
+  if (scanInFlight) throw new ScanInFlightError();
+  scanInFlight = true;
+
   const db = opts.db ?? openIndex();
   const start = Date.now();
+  setMeta(db, META_LAST_SCAN_STATUS, "running");
+  setMeta(db, META_LAST_SCAN_STARTED, String(start));
+  setMeta(db, META_LAST_SCAN_ERROR, "");
+
+  try {
+    const stats = await runScan(db, rootDir, start, opts);
+    setMeta(db, META_LAST_SCAN_STATUS, "complete");
+    setMeta(db, META_LAST_SCAN_FINISHED, String(Date.now()));
+    return stats;
+  } catch (err) {
+    const isAbort =
+      err instanceof DOMException && err.name === "AbortError" ||
+      (opts.signal?.aborted ?? false);
+    setMeta(db, META_LAST_SCAN_STATUS, isAbort ? "aborted" : "error");
+    setMeta(db, META_LAST_SCAN_FINISHED, String(Date.now()));
+    setMeta(db, META_LAST_SCAN_ERROR, isAbort ? "" : (err as Error).message);
+    throw err;
+  } finally {
+    scanInFlight = false;
+  }
+}
+
+async function runScan(
+  db: Database,
+  rootDir: string,
+  start: number,
+  opts: { onProgress?: (p: IndexProgress) => void; signal?: AbortSignal },
+): Promise<IndexStats> {
 
   const stats: IndexStats = {
     total: 0,
@@ -49,9 +116,11 @@ export async function indexCatalog(
   const familySet = new Set<string>();
   const scanStartedAt = Date.now();
 
-  // First pass: enumerate all files so the UI can show a total.
+  // First pass: enumerate all files so the UI can show a total. Pass the
+  // signal so a tab close mid-walk aborts within one readdir() boundary
+  // rather than silently completing the full enumeration before checking.
   const files: WalkedFile[] = [];
-  for await (const f of walkCatalog(rootDir)) files.push(f);
+  for await (const f of walkCatalog(rootDir, opts.signal)) files.push(f);
   stats.total = files.length;
 
   const selectFile = db.query<
@@ -218,6 +287,11 @@ export async function indexCatalog(
   }
 
   for (const file of files) {
+    // Per-file abort check. Granular enough that an aborted scan stops within
+    // the time it takes to parse one YAML — no full-walk wait — but not so
+    // tight that the check dominates the loop body.
+    opts.signal?.throwIfAborted();
+
     stats.processed += 1;
     familySet.add(file.family);
 

@@ -4,22 +4,26 @@
   import RawTab from "./tabs/RawTab.svelte";
   import HeadersTab from "./tabs/HeadersTab.svelte";
   import TimingTab from "./tabs/TimingTab.svelte";
-  import { formatMs } from "./format.ts";
+  import { formatMs, isJsonContentType } from "./format.ts";
+  import { decodeQueryValues, pathOnly } from "../../lib/url-display.ts";
 
   type Props = ResponseView & {
     sending: boolean;
     onclear?: () => void;
   };
   let {
-    status, statusText, headers, requestHeaders, bodyText, contentType,
+    status, statusText, requestMethod, requestUrl,
+    headers, requestHeaders, bodyText, contentType,
     timings, bytes, proxyError, sending, onclear,
   }: Props = $props();
+
+  const compactPath = $derived(decodeQueryValues(pathOnly(requestUrl)));
 
   type Tab = "table" | "raw" | "headers" | "timing";
   let activeTab = $state<Tab>("table");
 
   const parsedJson = $derived.by<Json | null>(() => {
-    if (!contentType?.startsWith("application/json")) return null;
+    if (!isJsonContentType(contentType)) return null;
     try { return JSON.parse(bodyText) as Json; } catch { return null; }
   });
 
@@ -60,6 +64,11 @@
     <span class="status status-{statusClass}">{status} {statusText}</span>
     <span class="duration">· {formatMs(timings.totalMs)}</span>
     {#if sending}<span class="sending">· sending…</span>{/if}
+    {#if requestUrl}
+      <span class="sep">·</span>
+      <span class="method method-{requestMethod.toLowerCase()}">{requestMethod}</span>
+      <code class="req-path" title={requestUrl}>{compactPath}</code>
+    {/if}
     {#if errorBanner}<span class="banner">{errorBanner}</span>{/if}
     <span class="spacer"></span>
     <nav class="tabs" role="tablist">
@@ -102,13 +111,33 @@
   .status { font-weight: bold; }
   .status-ok    { color: var(--accent); }
   .status-redir { color: var(--fg-dim); }
-  .status-warn  { color: color-mix(in srgb, var(--accent) 60%, #d4a548 40%); }
-  .status-err   { color: #ff8a8a; }
+  .status-warn  { color: var(--warn); }
+  .status-err   { color: var(--danger); }
   .duration, .sending { color: var(--fg-dim); }
+  .sep { color: var(--fg-dim); opacity: 0.5; }
+  .method {
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .method-get    { background: var(--method-get-bg); color: var(--method-get-fg); }
+  .method-post   { background: var(--method-post-bg); color: var(--method-post-fg); }
+  .method-put,
+  .method-patch  { background: var(--method-put-bg); color: var(--method-put-fg); }
+  .method-delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
+  .req-path {
+    color: var(--fg);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 50ch;
+  }
   .banner {
-    background: #2a1818;
-    color: #ffb0b0;
-    border: 1px solid #bf5050;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger-border);
     padding: 1px 8px;
     font-size: 11px;
   }

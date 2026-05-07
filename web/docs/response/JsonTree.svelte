@@ -108,7 +108,10 @@
     font-style: italic;
   }
   .close {
-    margin-left: -1ch;  /* close brace aligns with its opener's column, not its children */
+    /* Sit the closing brace directly under its opening brace. The opener is
+       rendered after the 14px-wide chevron, so the closer needs the same
+       offset. (The previous `-1ch` margin pushed it to the far left.) */
+    padding-left: 14px;
   }
   /* tk-* classes come from the global styles in RawTab; re-declare for isolation: */
   :global(.node .tk-key)    { color: var(--accent); }

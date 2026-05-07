@@ -42,6 +42,13 @@
     errors: string[];
   };
 
+  type LastScanStatus = "running" | "complete" | "aborted" | "error";
+  type LastScan = {
+    status: LastScanStatus | null;
+    startedAt: number | null;
+    finishedAt: number | null;
+    error: string | null;
+  };
   type Summary = {
     apiCount: number;
     endpointCount: number;
@@ -51,6 +58,7 @@
     families: Array<{ family: string; c: number }>;
     domains: Array<{ source_domain: string | null; c: number }>;
     errors: number;
+    lastScan: LastScan;
   };
 
   type ThemeName = "phosphor" | "amber" | "dos" | "beige";
@@ -65,6 +73,11 @@
   // ---- state ------------------------------------------------------------
   let config = $state<AppConfig | null>(null);
   let summary = $state<Summary | null>(null);
+  // Distinct from `summary === null` because a valid configured catalog
+  // still produces a null summary while the dashboard fetch is in flight.
+  // Without this flag, mode flips to "wizard" between the moment config
+  // arrives and the moment summary arrives — that's the wizard flash. (B-001)
+  let summaryLoaded = $state(false);
   let serverVersion = $state<string | undefined>(undefined);
   let loadError = $state<string | null>(null);
   let envs = $state<Environment[] | null>(null);
@@ -227,14 +240,22 @@
     writeFragment(ep);
   }
 
-  // Clear focus when leaving an API route.
+  // Clear focus when the user navigates to a different API (or leaves API
+  // routes entirely). Without the API-id check, a focus from `/apis/A/foo`
+  // survives navigation to `/apis/B/bar` and TryPanel re-fetches B's schema
+  // for A's endpoint path → 404 → "isn't in v1.0.0" orphan warning. (B-002)
+  //
+  // prevApiKey is a plain `let` (not `$state`) because only this effect ever
+  // reads it. Promoting it would re-trigger the effect on every assignment
+  // (the effect both reads + writes it), doubling its work for no gain.
+  let prevApiKey: string | null = null;
   $effect(() => {
-    if (route.kind !== "api") {
-      if (focusedEndpoint !== null) {
-        focusedEndpoint = null;
-        writeFragment(null);
-      }
+    const apiKey = route.kind === "api" ? `${route.family}/${route.resource}` : null;
+    if (apiKey !== prevApiKey && focusedEndpoint !== null) {
+      focusedEndpoint = null;
+      writeFragment(null);
     }
+    prevApiKey = apiKey;
   });
 
   // Re-read fragment when route arrives at an API detail view.
@@ -249,6 +270,10 @@
     if (!config) return "loading";
     if (!config.catalogPath) return "wizard";
     if (config.catalogPathStatus && config.catalogPathStatus !== "ok") return "wizard";
+    // Don't decide wizard-vs-app until we know whether the configured catalog
+    // produced a non-empty summary — otherwise the wizard flashes for one
+    // frame on every cold start. (B-001)
+    if (!summaryLoaded) return "loading";
     if (!summary || summary.apiCount === 0) return "wizard";
     return "app";
   });
@@ -335,6 +360,8 @@
       if (res.ok) summary = (await res.json()) as Summary;
     } catch (err) {
       loadError = (err as Error).message;
+    } finally {
+      summaryLoaded = true;
     }
   }
 
@@ -458,6 +485,38 @@
     if (wizardPath) await doValidate(wizardPath);
   }
 
+  // Re-scan the existing catalog without going back through the wizard. Used
+  // by the "indexing incomplete" banner + status-bar chip when the previous
+  // scan was aborted (tab close, kill, error).
+  let rescanInFlight = $state(false);
+  async function triggerRescan() {
+    if (rescanInFlight || !config?.catalogPath) return;
+    rescanInFlight = true;
+    wizardProgress = null;
+    wizardToast = null;
+    try {
+      await new Promise<void>((resolvePromise) => {
+        const url = `/api/index/scan-stream?path=${encodeURIComponent(config!.catalogPath!)}`;
+        const source = new EventSource(url);
+        source.addEventListener("progress", (e: MessageEvent) => {
+          wizardProgress = JSON.parse(e.data);
+        });
+        source.addEventListener("done", () => {
+          source.close();
+          resolvePromise();
+        });
+        source.addEventListener("error", () => {
+          source.close();
+          resolvePromise();
+        });
+      });
+      await loadDashboardData();
+    } finally {
+      rescanInFlight = false;
+      wizardProgress = null;
+    }
+  }
+
   async function clearIndexAction() {
     const ok = window.confirm(
       "Delete the local SQLite index? Your catalog folder and API keys are untouched — only the parsed index on disk is removed. You'll need to re-index after.",
@@ -503,6 +562,13 @@
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
       e.preventDefault();
       paletteOpen = !paletteOpen;
+    }
+    // Ctrl+Shift+H — return to catalog overview from any deep view. Use
+    // e.code so the binding tracks the physical H key regardless of layout
+    // (AZERTY, Dvorak, etc.) — `e.key` is layout-dependent and unreliable.
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyH") {
+      e.preventDefault();
+      goOverview();
     }
     if (e.key === "Escape" && settingsOpen) {
       e.preventDefault();
@@ -655,6 +721,7 @@
           if (res.ok) activeEnvId = id;
         }}
         onopensettings={() => openSettings()}
+        onhome={goOverview}
         openCommandPalette={openCommandPalette}
       />
     {/snippet}
@@ -671,7 +738,14 @@
     {/snippet}
     {#snippet middle()}
       {#if route.kind === "overview"}
-        <CatalogOverview onSelectColumn={selectColumn} onSelectTable={selectTable} />
+        <CatalogOverview
+          onSelectColumn={selectColumn}
+          onSelectTable={selectTable}
+          summary={summary}
+          lastScan={summary?.lastScan ?? null}
+          rescanInFlight={rescanInFlight}
+          onRescan={triggerRescan}
+        />
       {:else if route.kind === "api"}
         <ApiDocsView
           family={route.family}
@@ -713,8 +787,7 @@
       {:else}
         <PanePlaceholder
           title="Try API"
-          description="Environment-scoped request builder using the active env's Ellucian API key. Ctrl+. to collapse."
-          taskNumber={15}
+          description="Focus an endpoint to try it. Ctrl+. to collapse."
         />
       {/if}
     {/snippet}
@@ -730,7 +803,15 @@
       {/if}
     {/snippet}
     {#snippet statusBar()}
-      <StatusBar summary={summary} catalogPath={config?.catalogPath} env={activeEnvName} lastResponse={null} />
+      <StatusBar
+        summary={summary}
+        catalogPath={config?.catalogPath}
+        env={activeEnvName}
+        lastResponse={null}
+        lastScan={summary?.lastScan ?? null}
+        rescanInFlight={rescanInFlight}
+        onRescan={triggerRescan}
+      />
     {/snippet}
   </Shell>
 

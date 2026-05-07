@@ -22,6 +22,21 @@
   --danger: #ff6868;
   --warn: #ffcc6a;
 
+  /* Banner backgrounds + borders for error / warning states. Distinct from
+     `--danger` / `--warn` text tokens so banners can have a tinted backdrop
+     instead of inheriting the panel background. */
+  --danger-bg: #2a1414;
+  --danger-border: #bf5050;
+  --warn-bg: #2a2415;
+  --warn-border: #a67c20;
+
+  /* HTTP method badge swatches — kept semantic across themes so users can
+     distinguish GET/POST/PUT/DELETE at a glance even on the lighter palettes. */
+  --method-get-bg: #1e4a1e;     --method-get-fg: #9fff9f;
+  --method-post-bg: #4a1e1e;    --method-post-fg: #ffb0b0;
+  --method-put-bg: #4a3a1e;     --method-put-fg: #ffcc88;
+  --method-delete-bg: #4a1e1e;  --method-delete-fg: #ff8888;
+
   --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "IBM Plex Mono",
     Consolas, monospace;
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -50,6 +65,17 @@
   --accent-active: #ffd700;
   --danger: #ff6868;
   --warn: #ffcc6a;
+
+  --danger-bg: #2a1410;
+  --danger-border: #b04030;
+  --warn-bg: #2a200a;
+  --warn-border: #8a6020;
+
+  --method-get-bg: #2a3a14;     --method-get-fg: #b5e680;
+  --method-post-bg: #3a1a14;    --method-post-fg: #ffa080;
+  --method-put-bg: #3a2814;     --method-put-fg: #ffd080;
+  --method-delete-bg: #3a1614;  --method-delete-fg: #ff8068;
+
   color-scheme: dark;
 }
 
@@ -66,6 +92,17 @@
   --accent-active: #55ffff;
   --danger: #ff5454;
   --warn: #ffff54;
+
+  --danger-bg: #5a0000;
+  --danger-border: #ff5454;
+  --warn-bg: #4a4a00;
+  --warn-border: #ffff54;
+
+  --method-get-bg: #005500;     --method-get-fg: #54ff54;
+  --method-post-bg: #5a0000;    --method-post-fg: #ff5454;
+  --method-put-bg: #5a4a00;     --method-put-fg: #ffff54;
+  --method-delete-bg: #7a0000;  --method-delete-fg: #ff8080;
+
   color-scheme: dark;
 }
 
@@ -82,6 +119,17 @@
   --accent-active: #4b8f3a;
   --danger: #a03020;
   --warn: #8a6030;
+
+  --danger-bg: #f5dcd0;
+  --danger-border: #a03020;
+  --warn-bg: #f0e0c0;
+  --warn-border: #8a6030;
+
+  --method-get-bg: #d8e8c8;     --method-get-fg: #3a5a1a;
+  --method-post-bg: #eecccc;    --method-post-fg: #802020;
+  --method-put-bg: #eed8aa;     --method-put-fg: #6a4810;
+  --method-delete-bg: #f0c8c8;  --method-delete-fg: #802020;
+
   color-scheme: light;
 }
 

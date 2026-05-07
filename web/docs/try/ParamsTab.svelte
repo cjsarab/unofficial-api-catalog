@@ -2,29 +2,35 @@
   import type { OpenAPIParameter } from "../../lib/openapi.ts";
   import SchemaInput from "./SchemaInput.svelte";
   import CriteriaFilter from "./CriteriaFilter.svelte";
+  import { isCriteriaParam } from "./version-migration.ts";
 
   type Props = {
     parameters: OpenAPIParameter[];
     pathValues: Record<string, string>;
     queryValues: Record<string, string>;
-    criteriaValues: Record<string, Record<string, string>>;
+    /** Per-param criteria values: paramName → rootKey → leafName → value. */
+    criteriaValues: Record<string, Record<string, Record<string, string>>>;
+    /** Per-param raw-mode literal text override. */
+    criteriaRaw?: Record<string, string>;
     onPathChange: (name: string, v: string) => void;
     onQueryChange: (name: string, v: string) => void;
-    onCriteriaChange: (v: Record<string, Record<string, string>>) => void;
+    onCriteriaChange: (paramName: string, v: Record<string, Record<string, string>>) => void;
+    onCriteriaRawChange: (paramName: string, raw: string | null) => void;
     /** Fields required-but-empty as of the last Send attempt. */
     amberNames?: Set<string>;
-    undocumentedCriteria?: Array<{ rootKey: string; leafPath: string }>;
+    undocumentedCriteria?: Array<{ paramName: string; rootKey: string; leafPath: string }>;
   };
   let {
-    parameters, pathValues, queryValues, criteriaValues,
-    onPathChange, onQueryChange, onCriteriaChange,
+    parameters, pathValues, queryValues, criteriaValues, criteriaRaw,
+    onPathChange, onQueryChange, onCriteriaChange, onCriteriaRawChange,
     amberNames = new Set(), undocumentedCriteria = [],
   }: Props = $props();
 
   const pathParams = $derived(parameters.filter((p) => p.in === "path"));
   const queryParams = $derived(parameters.filter((p) => p.in === "query"));
-  const criteriaParam = $derived(queryParams.find((p) => p.schema?.type === "object" && (p.description?.includes(`?${p.name}=`) || typeof p.example === "string")));
-  const otherQueryParams = $derived(criteriaParam ? queryParams.filter((p) => p.name !== criteriaParam.name) : queryParams);
+  const criteriaParams = $derived(queryParams.filter(isCriteriaParam));
+  const criteriaNameSet = $derived(new Set(criteriaParams.map((p) => p.name)));
+  const otherQueryParams = $derived(queryParams.filter((p) => !criteriaNameSet.has(p.name)));
 
   const noParams = $derived(pathParams.length === 0 && queryParams.length === 0);
 </script>
@@ -63,16 +69,18 @@
           />
         </div>
       {/each}
-      {#if criteriaParam}
+      {#each criteriaParams as cp (cp.name)}
         <div class="pt-row pt-criteria">
           <CriteriaFilter
-            param={criteriaParam}
-            value={criteriaValues}
-            onChange={onCriteriaChange}
-            undocumented={undocumentedCriteria}
+            param={cp}
+            value={criteriaValues[cp.name] ?? {}}
+            onChange={(v) => onCriteriaChange(cp.name, v)}
+            rawOverride={criteriaRaw?.[cp.name]}
+            onRawOverride={(raw) => onCriteriaRawChange(cp.name, raw)}
+            undocumented={undocumentedCriteria.filter((u) => u.paramName === cp.name)}
           />
         </div>
-      {/if}
+      {/each}
     </section>
   {/if}
 {/if}
@@ -86,8 +94,8 @@
   }
   .pt-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 6px; align-items: start; }
   .pt-row label { color: var(--fg-dim, #6ba544); font-size: 12px; display: flex; flex-direction: column; padding-top: 4px; }
-  .pt-type { color: #3d6927; font-size: 10px; }
-  .pt-req { color: #d4a548; margin-left: 2px; align-self: flex-start; }
+  .pt-type { color: var(--fg-dim); font-size: 10px; }
+  .pt-req { color: var(--warn); margin-left: 2px; align-self: flex-start; }
   .pt-criteria { display: block; }
   .empty { color: var(--fg-dim, #6ba544); font-style: italic; }
 </style>

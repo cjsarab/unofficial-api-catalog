@@ -174,8 +174,9 @@
     width: 100%;
   }
   .si-input:focus, .si-select:focus, .si-raw:focus { outline: 1px solid var(--border-strong, #6ba544); }
-  .invalid { border-color: #bf5050 !important; color: #ff8a8a; }
-  .si-input[type="date"], .si-input[type="datetime-local"] { color-scheme: dark; }
+  .invalid { border-color: var(--danger-border) !important; color: var(--danger); }
+  /* Inherit color-scheme from :root (set per-theme in theme.css) so date
+     pickers blend on both dark and beige themes. */
 
   .si-bool { display: flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
   .si-bool input { accent-color: var(--border-strong, #6ba544); }
@@ -201,7 +202,7 @@
   .si-obj-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 6px; align-items: center; }
   .si-obj-label { color: var(--fg-dim, #6ba544); font-size: 12px; display: flex; flex-direction: column; }
   .si-obj-type { color: var(--fg-dim, #3d6927); font-size: 10px; }
-  .si-required { color: #d4a548; margin-left: 2px; }
+  .si-required { color: var(--warn); margin-left: 2px; }
 
   .si-raw { min-height: 48px; resize: vertical; }
 </style>

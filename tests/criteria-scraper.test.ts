@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { scrapeCriteriaFilters, type ExtractedFilter } from "../web/lib/criteria-scraper.ts";
+import { scrapeCriteriaFilters, inferRootShapes, type ExtractedFilter } from "../web/lib/criteria-scraper.ts";
 
 describe("criteria scraper", () => {
   test("empty description returns empty array", () => {
@@ -90,5 +90,39 @@ describe("criteria scraper", () => {
     const filters = scrapeCriteriaFilters("", "criteria", '{"names":[{"firstName":"Ada"}]}');
     expect(filters).toHaveLength(1);
     expect(filters[0]!.leafPath).toBe("firstName");
+  });
+});
+
+describe("inferRootShapes", () => {
+  test("array-of-objects example → array-of-objects shape", () => {
+    const filters = scrapeCriteriaFilters(`?criteria={"names":[{"firstName":"X"}]}`, "criteria");
+    const shapes = inferRootShapes(filters);
+    expect(shapes.get("names")).toBe("array-of-objects");
+  });
+
+  test("scalar example (rootKey === leafPath) → scalar shape", () => {
+    const filters = scrapeCriteriaFilters(`?personFilter={"personFilter":"abc"}`, "personFilter");
+    const shapes = inferRootShapes(filters);
+    expect(shapes.get("personFilter")).toBe("scalar");
+  });
+
+  test("plain object example → object shape", () => {
+    const filters = scrapeCriteriaFilters(
+      `?personFilter={"personFilter":{"id":"abc"}}`,
+      "personFilter",
+    );
+    const shapes = inferRootShapes(filters);
+    expect(shapes.get("personFilter")).toBe("object");
+  });
+
+  test("multiple roots in same param each get their own shape", () => {
+    const desc = `
+      ?criteria={"names":[{"firstName":"X"}]}
+      ?criteria={"alternativeCredentials":[{"type":"x","value":"Y"}]}
+    `;
+    const filters = scrapeCriteriaFilters(desc, "criteria");
+    const shapes = inferRootShapes(filters);
+    expect(shapes.get("names")).toBe("array-of-objects");
+    expect(shapes.get("alternativeCredentials")).toBe("array-of-objects");
   });
 });

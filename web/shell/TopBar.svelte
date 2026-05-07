@@ -13,9 +13,10 @@
     activeEnvId: string | null;
     onactivate: (id: string) => void;
     onopensettings: () => void;
+    onhome: () => void;
     openCommandPalette: () => void;
   };
-  let { theme, onthemechange, envs, activeEnvId, onactivate, onopensettings, openCommandPalette }: Props = $props();
+  let { theme, onthemechange, envs, activeEnvId, onactivate, onopensettings, onhome, openCommandPalette }: Props = $props();
 
   const themes: ThemeName[] = ["phosphor", "amber", "dos", "beige"];
 
@@ -28,6 +29,11 @@
 </script>
 
 <header class="top-bar">
+  <button class="home" onclick={onhome} aria-label="Catalog overview (Ctrl+Shift+H)" title="Home (Ctrl+Shift+H)">
+    <span class="chev">◀</span>
+    <span class="text">HOME</span>
+  </button>
+
   <button class="search-trigger" onclick={openCommandPalette} aria-label="Open search (Ctrl+K)">
     <span class="icon">⌕</span>
     <span class="placeholder">search APIs, columns, tables, domains…</span>
@@ -65,6 +71,22 @@
 
 <style>
   .top-bar { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-2) var(--space-4); background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+  .home {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: transparent;
+    color: var(--fg-dim);
+    border: 1px solid var(--border);
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .home:hover { color: var(--fg-bright); border-color: var(--border-strong); background: var(--bg-raised); }
+  .home .chev { font-size: 0.75rem; }
   .search-trigger { flex: 1; display: flex; align-items: center; gap: var(--space-3); background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border); padding: var(--space-2) var(--space-3); font-family: var(--font-mono); cursor: pointer; text-align: left; }
   .search-trigger:hover { color: var(--fg); }
   .search-trigger .placeholder { flex: 1; }

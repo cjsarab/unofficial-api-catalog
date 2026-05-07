@@ -9,6 +9,23 @@ export interface ExtractedFilter {
   fullPath: string[];
 }
 
+/** How a root key's value is wire-shaped in the documented example. The URL
+ *  builder needs this because the form state (rootKey → leaf → value) is lossy
+ *  — both `{names:[{a,b}]}` and `{names:{a,b}}` collapse to the same chips,
+ *  so we have to remember the original shape from the description. */
+export type RootShape = "array-of-objects" | "object" | "scalar";
+
+export function inferRootShapes(filters: ExtractedFilter[]): Map<string, RootShape> {
+  const shapes = new Map<string, RootShape>();
+  for (const f of filters) {
+    if (shapes.has(f.rootKey)) continue;
+    if (f.fullPath.length === 3 && f.fullPath[1] === "0") shapes.set(f.rootKey, "array-of-objects");
+    else if (f.fullPath.length === 2) shapes.set(f.rootKey, "object");
+    else shapes.set(f.rootKey, "scalar"); // length 1 — leafPath === rootKey
+  }
+  return shapes;
+}
+
 /**
  * Scrape a parameter's description (and optional example) for `?paramName={...}`
  * URL blocks. Extracts leaf paths and Title-Cases labels.
